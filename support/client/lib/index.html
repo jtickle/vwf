@@ -67,12 +67,27 @@
     <!-- directives from a connection to an outside engine that is not visible to all users- but -->
     <!-- may only affect the simulation indirectly through the synchronization server.           -->
 
-    <script type="text/javascript">var connected = window.location.search.indexOf( "?connected" ) == 0</script>
+    <script type="text/javascript">var googleEarth = window.location.search.indexOf( "?googleEarth" ) == 0</script>
     <script type="text/javascript">var cesium = window.location.search.indexOf( "?cesium" ) == 0</script>
-    <script type="text/javascript">connected && document.write( "<scr" + "ipt type='text/javascript' src='http://www.google.com/jsapi?hl=en&amp;key=ABQIAAAAwbkbZLyhsmTCWXbTcjbgbRSzHs7K5SvaUdm8ua-Xxy_-2dYwMxQMhnagaawTo7L1FE1-amhuQxIlXw'></scr" + "ipt>")</script>
-    <script type="text/javascript">connected && google.load( "earth", "1" )</script>
+    <script type="text/javascript">var threejs = window.location.search.indexOf( "?threejs" ) == 0</script>
+    <script type="text/javascript">var glge = window.location.search.indexOf( "?glge" ) == 0</script>
+
+    <script type="text/javascript">googleEarth && document.write( "<scr" + "ipt type='text/javascript' src='http://www.google.com/jsapi?hl=en&amp;key=ABQIAAAAwbkbZLyhsmTCWXbTcjbgbRSzHs7K5SvaUdm8ua-Xxy_-2dYwMxQMhnagaawTo7L1FE1-amhuQxIlXw'></scr" + "ipt>")</script>
+    <script type="text/javascript">googleEarth && google.load( "earth", "1" )</script>
 
     <script type="text/javascript">
+
+        var rendererDef = { "vwf/view/threejs": "#vwf-root" };
+
+        if ( !glge && !threejs && !googleEarth && !cesium ) { 
+            // glge is now the default if no renderer is specified
+            console.info( "No renderer specified, setting default to: threejs" );
+            threejs = true; 
+        }
+
+        if ( glge ) {
+            rendererDef = { "vwf/view/glge": "#vwf-root" };
+        }
 
         require( [
 
@@ -85,19 +100,21 @@
             "vwf/kernel/model",
             "vwf/model/javascript",
             "vwf/model/jiglib",
-            "vwf/model/glge",
-			"vwf/model/threejs",
+            glge && "vwf/model/glge",
+            threejs && "vwf/model/threejs",
             "vwf/model/scenejs",
             "vwf/model/object",
             "vwf/model/stage/log",
             "vwf/kernel/view",
             "vwf/view/document",
             "vwf/view/editor",
-            "vwf/view/glge",
             "vwf/view/touch",
-			"vwf/view/threejs",
+            glge && "vwf/view/glge",
+            threejs && "vwf/view/threejs",
             "vwf/utility",
-            connected && "vwf/view/googleEarth",
+            glge && "vwf/model/glge/glge-compiled.js",
+            threejs && "vwf/model/threejs/three.js",
+            googleEarth && "vwf/view/googleEarth",
             cesium && "vwf/view/cesium"
 			
         ], function( ready ) {
@@ -134,7 +151,7 @@
                     [
                         "vwf/model/javascript",
                         "vwf/model/jiglib",
-                        "vwf/model/threejs",
+                        threejs ? "vwf/model/threejs" : "vwf/model/glge",
                         "vwf/model/object",
                     ],
 
@@ -142,11 +159,11 @@
                     // configurations.
 
                     [
-						{ "vwf/view/threejs": "#vwf-root" },
+						rendererDef,
                         "vwf/view/document",
                         "vwf/view/editor",
                         "vwf/view/touch",
-						connected && "vwf/view/googleEarth",
+						googleEarth && "vwf/view/googleEarth",
 						cesium && "vwf/view/cesium"
                     ]
 
@@ -156,12 +173,23 @@
 
         } );
 
+        //if ( threejs ) {
+        //    require( [ "vwf/model/threejs/three.js" ], function() { console.info( "threejs loaded" );  }  );
+        //} else {
+        //    require( [ "vwf/model/glge/glge-compiled.js" ], function() { console.info( "glge loaded" );  }  );
+        //}
+
     </script>
 
     <!-- This is the common view implementation and an example view that summarizes the          -->
     <!-- simulation state in HTML on the main page.                                              -->
-    <!-- <script type="text/javascript" src="vwf/model/glge/glge-compiled.js"></script> -->
+
+    <!-- moved the renderer loading up to a require call which is based on the renderer
+         specified, in the url, glge is the default
+    <script type="text/javascript" src="vwf/model/glge/glge-compiled.js"></script>
 	<script type="text/javascript" src="vwf/model/threejs/three.js"></script>
+    -->   
+
     <script type="text/javascript" src="vwf/model/jiglib/jiglib.js"></script>
  	<link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
     <link rel="stylesheet" type="text/css" href="index.css" />
