@@ -445,6 +445,24 @@ node.uri = childURI; // TODO: move to vwf/model/object  // TODO: delegate to ker
             var child = this.nodes[childID].node;
             var scriptText = "this.initialize && this.initialize()";
 
+var scriptText = " \
+    \
+    var initializers = [], node = this;\n\
+    \n\
+    while ( node ) {\n\
+        if ( node.hasOwnProperty( 'initialize' ) && node.initialize ) {\n\
+            initializers.unshift( { func: node.initialize, id: node.id } );\n\
+        }\n\
+        node = Object.getPrototypeOf( node );\n\
+    }\n\
+    \n\
+    initializers.forEach( function( initialize ) {\n\
+        this.logger.warn( 'initializing', this.id, 'from', initialize.id );\n\
+        initialize.func.call( this );\n\
+    }, this );\n\
+    \
+";
+
             try {
                 return ( SB.Function( "scriptText", "return eval( scriptText )" ) ).
                     call( child, scriptText );
