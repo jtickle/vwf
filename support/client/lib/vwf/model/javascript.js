@@ -858,6 +858,8 @@ proxy.uri = behavior.uri; // TODO: move to vwf/model/object  // TODO: delegate t
         proxy.source = behavior.source;  // TODO: delegate to kernel
         proxy.type = behavior.type;  // TODO: delegate to kernel
 
+proxy.initialize = behavior.initialize;
+
         proxy.properties = SB.Object.create( prototype ? prototype.properties : SB.Object.prototype, {
             vwf$node: { value: proxy } // for proxy.properties accessors (non-enumerable)
         } );

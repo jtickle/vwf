@@ -2603,15 +2603,27 @@ kernel.addChild( nodeID, childID, childName );  // TODO: addChild is (almost) im
         /// 
         /// @see {@link module:vwf/api/kernel.prototypes}
 
-        prototypes: function( nodeID ) {
+        prototypes: function( nodeID, includeBehaviors ) {
 
             var prototypes = [];
+
+            if ( includeBehaviors ) {
+                var b = [].concat( this.behaviors( nodeID ) );
+                Array.prototype.push.apply( prototypes, b.reverse() );
+            }
 
             nodeID = this.prototype( nodeID );
 
             while ( nodeID ) {
+
                 prototypes.push( nodeID );
                 nodeID = this.prototype( nodeID );
+
+                if ( nodeID && includeBehaviors ) {
+                    var b = [].concat( this.behaviors( nodeID ) );
+                    Array.prototype.push.apply( prototypes, b.reverse() );
+                }
+
             }
 
             return prototypes;
@@ -3574,7 +3586,7 @@ kernel.addChild( nodeID, childID, childName );  // TODO: addChild is (almost) im
         }
 
         var matches_type = ! type || kernel.uri( nodeID ) == type ||
-            kernel.prototypes( nodeID ).some( function( prototypeID ) {
+            kernel.prototypes( nodeID, true ).some( function( prototypeID ) {
                 return kernel.uri( prototypeID ) == type;
         } );
 
