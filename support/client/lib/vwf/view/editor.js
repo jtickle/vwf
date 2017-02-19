@@ -20,7 +20,15 @@
 /// @requires vwf/view
 /// @requires vwf/utility
 
-define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, version, view, utility ) {
+define( [ 
+    "module", 
+    "version", 
+    "vwf/view", 
+    "vwf/utility", 
+    "jquery", 
+    "jquery-ui", 
+    "jquery-encoder-0.1.0" 
+    ], function( module, version, view, utility, $ ) {
 
     return view.load( module, {
 
@@ -56,9 +64,23 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
             this.currentModelID = '';
             this.currentModelURL = '';
             this.highlightedChild = '';
+            this.intervalTimer = 0;
+
+            this.activeCameraID = undefined;
             
-            jQuery('body').append(
-                "<div id='editor' class='relClass'><div class='uiContainer'><div class='editor-tabs' id='tabs'><img id='x' style='display:none' src='images/tab_X.png' alt='x' /><img id='hierarchy' src='images/tab_Application.png' alt='application' /><img id='userlist' src='images/tab_Users.png' alt='users' /><img id='timeline' src='images/tab_Time.png' alt='time' /><img id='models' src='images/tab_Models.png' alt='models' /><img id='about' src='images/tab_About.png' alt='about' /></div></div></div>" + 
+            $('body').append(
+                "<div id='editor' class='relClass'>\n" +
+                "  <div class='uiContainer'>\n" +
+                "    <div class='editor-tabs' id='tabs'>\n" +
+                "      <img id='x' style='display:none' src='images/tab_X.png' alt='x' />\n" +
+                "      <img id='hierarchy' src='images/tab_Application.png' alt='application' />\n" +
+                "      <img id='userlist' src='images/tab_Users.png' alt='users' />\n" +
+                "      <img id='timeline' src='images/tab_Time.png' alt='time' />\n" + 
+                "      <img id='models' src='images/tab_Models.png' alt='models' />\n" +
+                "      <img id='about' src='images/tab_About.png' alt='about' />\n" +
+                "    </div>\n" +
+                "  </div>\n" + 
+                "</div>" + 
                 "<div class='relClass'><div class='uiContainer'><div class='vwf-tree' id='topdown_a'></div></div></div>" + 
                 "<div class='relClass'><div class='uiContainer'><div class='vwf-tree' id='topdown_b'></div></div></div>" + 
                 "<div class='relClass'><div class='uiContainer'><div class='vwf-tree' id='client_list'></div></div></div>" +
@@ -70,39 +92,39 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
             
             $('#tabs').stop().animate({ opacity:0.0 }, 0);
             
-            jQuery('#tabs').mouseenter( function(evt) { 
+            $('#tabs').mouseenter( function(evt) { 
                 evt.stopPropagation();
                 $('#tabs').stop().animate({ opacity:1.0 }, 175);
                 return false; 
             });
             
-            jQuery('#tabs').mouseleave( function(evt) { 
+            $('#tabs').mouseleave( function(evt) { 
                 evt.stopPropagation(); 
                 $('#tabs').stop().animate({ opacity:0.0 }, 175);
                 return false; 
             });
             
-            jQuery('#hierarchy').click ( function(evt) {
+            $('#hierarchy').click ( function(evt) {
                 openEditor.call(self, 1);
             });
 
-            jQuery('#userlist').click ( function(evt) {
+            $('#userlist').click ( function(evt) {
                 openEditor.call(self, 2);
             });
 
-            jQuery('#timeline').click ( function(evt) {
+            $('#timeline').click ( function(evt) {
                 openEditor.call(self, 3);
             });
 
-            jQuery('#about').click ( function(evt) {
+            $('#about').click ( function(evt) {
                 openEditor.call(self, 4);
             });
 
-            jQuery('#models').click ( function(evt) {
+            $('#models').click ( function(evt) {
                 openEditor.call(self, 5);
             });
 
-            jQuery('#x').click ( function(evt) {
+            $('#x').click ( function(evt) {
                 closeEditor.call(self);
             });
 
@@ -137,7 +159,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         },
         
         createdNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
-            childSource, childType, childURI, childName, callback /* ( ready ) */ ) {
+            childSource, childType, childIndex, childName, callback /* ( ready ) */ ) {
 
             var nodeIDAttribute = $.encoder.encodeForHTMLAttribute("id", nodeID, true);
             var childIDAttribute = $.encoder.encodeForHTMLAttribute("id", childID, true);
@@ -178,6 +200,10 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 });
                 $('#children > div:last').css('border-bottom-width', '3px');
             }
+
+            if ( nodeID === this.kernel.application() && childName === 'camera' ) {
+                this.activeCameraID = childID;    
+            }
         },
         
         createdProperty: function (nodeID, propertyName, propertyValue) {
@@ -188,28 +214,18 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         initializedProperty: function (nodeID, propertyName, propertyValue) {
    
             var node = this.nodes[ nodeID ];
+
             if ( ! node ) return;  // TODO: patch until full-graph sync is working; drivers should be able to assume that nodeIDs refer to valid objects
 
-            var property = node.properties[ propertyName ] = {
-                name: propertyName,
-                value: propertyValue,
-            };
-
-            try {
-                propertyValue = utility.transform( propertyValue, utility.transforms.transit );
-                node.properties[ propertyName ].value = JSON.stringify( propertyValue );
-            } catch (e) {
-                this.logger.warnx( "createdProperty", nodeID, propertyName, propertyValue,
-                    "stringify error:", e.message );
-                node.properties[ propertyName ].value = propertyValue;
-            }
+            var property = node.properties[ propertyName ] = createProperty.call( this, node, propertyName, propertyValue );
             
             node.properties.push( property );
         },
         
         deletedNode: function (nodeID) {
             var node = this.nodes[ nodeID ];
-            node.parent.children.splice( node );
+            node.parent.children.splice( node.parent.children.indexOf(node), 1 );
+            delete this.nodes[ nodeID ];
             var nodeIDAttribute = $.encoder.encodeForAlphaNumeric(nodeID); // $.encoder.encodeForHTMLAttribute("id", nodeID, true);
             $('#' + nodeIDAttribute).remove();
             $('#children > div:last').css('border-bottom-width', '3px');
@@ -220,7 +236,25 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
         satProperty: function (nodeID, propertyName, propertyValue) {
             var node = this.nodes[ nodeID ];
+
             if ( ! node ) return;  // TODO: patch until full-graph sync is working; drivers should be able to assume that nodeIDs refer to valid objects
+            
+            // It is possible for a property to have satProperty called for it without ever getting an
+            // initializedProperty (if that property delegated to itself or another on replication)
+            // Catch that case here and create the property
+            if ( ! node.properties[ propertyName ] ) {
+
+                var property = node.properties[ propertyName ] = createProperty.call( this, node, propertyName, propertyValue );
+
+                node.properties.push( property );
+            }
+            
+            if ( propertyName === "activeCamera" ) {
+                if ( this.nodes[ propertyValue ] !== undefined ) {
+                    this.activeCameraID = propertyValue;
+                }
+            }
+
             try {
                 propertyValue = utility.transform( propertyValue, utility.transforms.transit );
                 node.properties[ propertyName ].value = JSON.stringify( propertyValue );
@@ -230,11 +264,13 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 node.properties[ propertyName ].value = propertyValue;
             }
 
-            var nodeIDAttribute = $.encoder.encodeForAlphaNumeric(nodeID); // $.encoder.encodeForHTMLAttribute("id", nodeID, true);
-            var propertyNameAttribute = $.encoder.encodeForHTMLAttribute("id", propertyName, true);
+            if ( ( this.editorView == 1 ) && ( this.currentNodeID == nodeID ) ) {
+                var nodeIDAttribute = $.encoder.encodeForAlphaNumeric(nodeID); // $.encoder.encodeForHTMLAttribute("id", nodeID, true);
+                var propertyNameAttribute = $.encoder.encodeForAlphaNumeric("id", propertyName, true);
             
-            // No need to escape propertyValue, because .val does its own escaping
-            $('#input-' + nodeIDAttribute + '-' + propertyNameAttribute).val(node.properties[ propertyName ].value);
+                // No need to escape propertyValue, because .val does its own escaping
+                $( '#input-' + nodeIDAttribute + '-' + propertyNameAttribute ).val( node.properties[ propertyName ].getValue() );
+            }
         },
         
         //gotProperty: [ /* nodeID, propertyName, propertyValue */ ],
@@ -285,18 +321,6 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         //ticked: [ /* time */ ],
         
     } );
-
-    // -- getPropertyValues -----------------------------------------------------------------
-
-    function getPropertyValues( node ) {
-        var pv = {};
-        if ( node ) {
-            for ( var i = 0; i < node.properties.length; i++ ) {
-                pv[ node.properties[i] ] = vwf.getProperty( node.ID, node.properties[i], [] );
-            }
-        }
-        return pv;
-    };
     
     // -- getChildByName --------------------------------------------------------------------
     
@@ -309,6 +333,51 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         }
         return childNode;
     };
+
+    function updateCameraProperties () {
+
+        if ( this.currentNodeID == this.activeCameraID ) {
+            if ( !this.intervalTimer ) {
+                var self = this;
+                this.intervalTimer = setInterval( function() { updateProperties.call( self, self.activeCameraID ) }, 200 );
+            }
+        }
+        else {
+            if ( this.intervalTimer ) {
+                clearInterval( this.intervalTimer );
+                this.intervalTimer = 0;
+            } 
+        }
+    }
+
+    function updateProperties( nodeName ) {
+
+        var nodeID = nodeName;
+        var properties = getProperties.call( this, this.kernel, nodeID );
+
+        for ( var i in properties ) { 
+            try {
+                var propertyName = properties[i].prop.name;
+                var propertyValue = JSON.stringify( utility.transform( vwf.getProperty( nodeID, propertyName, [] ), utility.transforms.transit ));
+            } catch ( e ) {
+                this.logger.warnx( "satProperty", nodeID, propertyName, propertyValue, "stringify error:", e.message );
+            }
+
+            if ( propertyValue ) {
+                var nodeIDAttribute = $.encoder.encodeForAlphaNumeric( nodeID ); 
+                var propertyNameAttribute = $.encoder.encodeForHTMLAttribute( "id", propertyName, true );
+                var inputElement$ = $( '#input-' + nodeIDAttribute + '-' + propertyNameAttribute );
+                // Only update if property value input is not in focus
+                // If in focus, change font style to italic
+                if ( ! inputElement$.is(":focus") ) {
+                    inputElement$.val( propertyValue );
+                    inputElement$.css( "font-style", "normal");
+                } else {
+                    inputElement$.css( "font-style", "italic");
+                }  
+            }
+        }
+    }
     
     // -- openEditor ------------------------------------------------------------------------
 
@@ -327,7 +396,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 var topdownName = this.topdownName;
                 var topdownTemp = this.topdownTemp;
 
-                if( this.currentNodeID == '' )
+                if( !this.currentNodeID )
                 {
                     this.currentNodeID = vwf_view.kernel.find("", "/")[0];
                 }
@@ -447,6 +516,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         if (this.editorOpen && this.editorView == 1) // Hierarchy view open
         {
             $(topdownName).hide('slide', {direction: 'right'}, 175);
+            $(topdownName).empty();
             $(this.clientList).hide();
             $(this.timeline).hide();
             $(this.about).hide();
@@ -502,7 +572,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
     {
         var clientList = this.clientList;
 
-        updateClients.call(this);
+        viewClients.call(this);
 
         if (!this.editorOpen)
         {
@@ -514,65 +584,170 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         }
     }
 
-    // -- updateClients ---------------------------------------------------------------------
+    // -- viewClients -----------------------------------------------------------------------
 
-    function updateClients() {
+    function viewClients() {
         var self = this;
         var app = window.location.pathname;
-        var root = app.substring(1, app.length-18);
-        var inst = app.substring(app.length-17, app.length-1);
-        var match;
+        var pathSplit = app.split('/');
+        if ( pathSplit[0] == "" ) {          
+            pathSplit.shift();
+        }
+        if ( pathSplit[ pathSplit.length - 1 ] == "" ) {
+            pathSplit.pop();
+        }            
+        var instIndex = pathSplit.length - 1;
+        if ( pathSplit.length > 2 ) {
+            if ( pathSplit[ pathSplit.length - 2 ] == "load" ) {
+                instIndex = pathSplit.length - 3;
+            }
+        }
+        if ( pathSplit.length > 3 ) {
+            if ( pathSplit[ pathSplit.length - 3 ] == "load" ) {
+                instIndex = pathSplit.length - 4;
+            }
+        }
 
+        var root = "";
+        for ( var i=0; i < instIndex; i++ ) {
+            if ( root != "" ) {
+                root = root + "/";
+            } 
+            root = root + pathSplit[i];
+        }
+
+        if(root.indexOf('.vwf') != -1) root = root.substring(0, root.lastIndexOf('/'));
+        
         var clients$ = $(this.clientList);
+        var node = this.nodes[ "http://vwf.example.com/clients.vwf" ];
 
-        jQuery.getJSON( "/" + root + "/admin/instances", function( data ) {
-            jQuery.each( data, function( key, value ) {
-                if ( match = /* assignment! */ key.match( RegExp( "/([^/]*)$" ) ) ) {
+        clients$.html("<div class='header'>Connected Clients</div>");
 
-                    var instanceHTML = $.encoder.encodeForHTML(String( match[1] ));
+        // Add node children
+        clients$.append("<div id='clientsChildren'></div>");
+        for ( var i = 0; i < node.children.length; i++ ) {
+            var nodeChildIDAttribute = $.encoder.encodeForHTMLAttribute("id", node.children[i].ID, true);
+            var nodeChildIDAlpha = $.encoder.encodeForAlphaNumeric(node.children[i].ID);
+            var nodeChildNameHTML = $.encoder.encodeForHTML(node.children[i].name);
+            $('#clientsChildren').append("<div id='" + nodeChildIDAlpha + "' data-nodeID='" + nodeChildIDAttribute + "' class='childContainer'><div class='childEntry'><b>" + nodeChildNameHTML + "</b></div></div>");
+            $('#' + nodeChildIDAlpha).click( function(evt) {
+                viewClient.call(self, $(this).attr("data-nodeID"));
+            });
+        }
 
-                    if(instanceHTML == inst)
-                    {
-                        clients$.html("<div class='header'>Users</div>");
-                        for (var clientID in value.clients) { 
-                            clients$.append("<div class='clientEntry'>" + clientID + "</div>"); 
-                        }
+        // Login Information
+        clients$.append("<div style='padding:6px'><input class='filename_entry' type='text' id='userName' placeholder='Username' /><!-- <input class='filename_entry' type='password' id='password' placeholder='Password'/> --><input class='update_button' type='button' id='login' value='Login' /></div>"); 
+        clients$.append("<hr/>");
+        $('#userName').keydown( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#userName').keypress( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#userName').keyup( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#password').keydown( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#password').keypress( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#password').keyup( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#login').click(function(evt) {
+            // Future call to validate username and password
+            //login.call(self, $('#userName').val(), $('#password').val());
 
-                        clients$.append("<div style='padding:6px'><input class='filename_entry' type='text' id='fileName' /><input class='update_button' type='button' id='save' value='Save' /></div>");
-                        $('#fileName').keydown( function(evt) {
-                            evt.stopPropagation();
-                        });
-                        $('#fileName').keypress( function(evt) {
-                            evt.stopPropagation();
-                        });
-                        $('#fileName').keyup( function(evt) {
-                            evt.stopPropagation();
-                        });
-                        $('#save').click(function(evt) {
-                            saveStateAsFile.call(self, $('#fileName').val());
-                        });
+            var moniker = vwf_view.kernel.moniker();
+            var clients = vwf_view.kernel.findClients("", "/*");
+            var client = undefined;
+            for (var i=0; i < clients.length; i++)
+            {
+                if ( clients[i].indexOf(moniker) != -1 )
+                {
+                    client = clients[i];
+                    break;
+                }
+            }
+            // var client = vwf_view.kernel.findClients("", "/" + moniker)[0];
+            
+            if ( client ) {
+                vwf_view.kernel.setProperty( client, "displayName", $('#userName').val() );
+            }
+        });
 
-                        clients$.append("<div style='padding:6px'><select class='filename_select' id='fileToLoad' /></select></div>");
-                        $('#fileToLoad').append("<option value='none'></option>");
+        // Save / Load
+        clients$.append("<div style='padding:6px'><input class='filename_entry' type='text' id='fileName' /><input class='update_button' type='button' id='save' value='Save' /></div>");
+        $('#fileName').keydown( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#fileName').keypress( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#fileName').keyup( function(evt) {
+            evt.stopPropagation();
+        });
+        $('#save').click(function(evt) {
+            saveStateAsFile.call(self, $('#fileName').val());
+        });
 
-                        $.getJSON( "/" + root + "/admin/files", function( data ) {
-                            $.each( data, function( key, value ) {
-                                var fileName = encodeURIComponent(value['basename']);
-                                $('#fileToLoad').append("<option value='"+fileName+"'>"+fileName+"</option>");
-                            } );
-                        } );
+        clients$.append("<div style='padding:6px'><select class='filename_select' id='fileToLoad' /></select></div>");
+        $('#fileToLoad').append("<option value='none'></option>");
 
-                        clients$.append("<div style='padding:6px'><input class='update_button' type='button' id='load' value='Load' /></div>");
-                        $('#load').click(function(evt) {
-                            loadSavedState.call(self, $('#fileToLoad').val());
-                        });
-                    }
+        $.getJSON( "/" + root + "/listallsaves", function( data ) {
+            $.each( data, function( key, value ) {
+                var applicationName = value[ 'applicationpath' ].split( "/" );
+                if ( applicationName.length > 0 ) {
+                    applicationName = applicationName[ applicationName.length - 1 ];
+                }
+                if ( applicationName.length > 0 ) {
+                    applicationName = applicationName.charAt(0).toUpperCase() + applicationName.slice(1);
+                }
+                if ( value['latestsave'] ) {
+                    $('#fileToLoad').append("<option value='"+value['savename']+"' applicationpath='"+value['applicationpath']+"'>"+applicationName+": "+value['savename']+"</option>");
+                }
+                else {
+                    $('#fileToLoad').append("<option value='"+value['savename']+"' applicationpath='"+value['applicationpath']+"' revision='"+value['revision']+"'>"+applicationName+": "+value['savename']+" Rev(" + value['revision'] + ")</option>");
                 }
             } );
         } );
 
-        //setTimeout(updateClients.call(this), 5000);
-    };
+        clients$.append("<div style='padding:6px'><input class='update_button' type='button' id='load' value='Load' /></div>");
+        $('#load').click(function(evt) {
+            loadSavedState.call(self, $('#fileToLoad').val(), $('#fileToLoad').find(':selected').attr('applicationpath'), $('#fileToLoad').find(':selected').attr('revision'));
+        });
+    }
+
+    // -- viewClient ------------------------------------------------------------------------
+
+    function viewClient( clientID ) {
+        var self = this;
+
+        var clients$ = $(this.clientList);
+        var node = this.nodes[ clientID ];
+
+        clients$.html("<div class='header'><img src='images/back.png' id='back' alt='back'/> " + $.encoder.encodeForHTML(node.name) + "</div>");
+        $('#back').click ( function(evt) {
+            viewClients.call( self );
+        });
+
+        // Add node properties
+        clients$.append("<div id='clientProperties'></div>");
+        var displayedProperties = {};
+        for ( var i = 0; i < node.properties.length; i++ ) {
+            if ( !displayedProperties[ node.properties[i].name ] ) {
+                displayedProperties[ node.properties[i].name ] = "instance";
+                var nodeIDAlpha = $.encoder.encodeForAlphaNumeric(clientID);
+                var propertyNameAttribute = $.encoder.encodeForHTMLAttribute("id", node.properties[i].name, true);
+                var propertyNameAlpha = $.encoder.encodeForAlphaNumeric(node.properties[i].name);
+                var propertyNameHTML = $.encoder.encodeForHTML(node.properties[i].name);
+                var propertyValueAttribute = $.encoder.encodeForHTMLAttribute("val", node.properties[i].getValue(), true);
+                $('#clientProperties').append("<div id='" + nodeIDAlpha + "-" + propertyNameAlpha + "' class='propEntry'><table><tr><td><b>" + propertyNameHTML + " </b></td><td><input type='text' class='input_text' id='input-" + nodeIDAlpha + "-" + propertyNameAlpha + "' value='" + propertyValueAttribute + "' data-propertyName='" + propertyNameAttribute + "' readonly></td></tr></table></div>");
+            }
+        }
+    }
 
     // -- drillDown -------------------------------------------------------------------------
 
@@ -627,13 +802,19 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
     function drill(nodeID, drillBackID) // invoke with the view as "this"
     {
+        var node = this.nodes[ nodeID ];
+
+        if ( !node ) {
+            this.logger.errorx( "drill: Cannot find node '" + nodeID + "'" );
+            return;
+        }
+
         var self = this;
         var topdownName = this.topdownName;
         var topdownTemp = this.topdownTemp;
         var nodeIDAlpha = $.encoder.encodeForAlphaNumeric(nodeID);
 
         $(topdownName).html(''); // Clear alternate div first to ensure content is added correctly
-        var node = this.nodes[ nodeID ];
         this.currentNodeID = nodeID;
 
         if(!drillBackID) drillBackID = node.parentID;
@@ -645,7 +826,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         else
         {
             $(topdownTemp).html("<div class='header'><img src='images/back.png' id='" + nodeIDAlpha + "-back' alt='back'/> " + $.encoder.encodeForHTML(node.name) + "</div>");
-            jQuery('#' + nodeIDAlpha + '-back').click ( function(evt) {
+            $('#' + nodeIDAlpha + '-back').click ( function(evt) {
                 drillUp.call(self, drillBackID);
             });
         }
@@ -664,6 +845,8 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         $('#children > div:last').css('border-bottom-width', '3px');
 
         // Add prototype children
+        // TODO: Commented out until prototype children inherit from prototypes
+        /*
         $(topdownTemp).append("<div id='prototypeChildren'></div>");
         var prototypeChildren = getChildren.call( this, this.kernel, node.extendsID ); 
         for ( var key in prototypeChildren)       
@@ -675,20 +858,21 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
             $('#' + prototypeChildIDAlpha).click( function(evt) {
                 drillDown.call(self, $(this).attr("data-nodeID"), nodeID);
             });
-        }
-
+        } 
+        */   // END TODO:
+        
         $('#prototypeChildren > div:last').css('border-bottom-width', '3px');
 
         // Add node properties
         $(topdownTemp).append("<div id='properties'></div>");
         var displayedProperties = {};
         for ( var i = 0; i < node.properties.length; i++ ) {
-            if ( !displayedProperties[ node.properties[i].name ] ) {
+            if ( !displayedProperties[ node.properties[i].name ] && node.properties[i].name.indexOf('$') === -1) {
                 displayedProperties[ node.properties[i].name ] = "instance";
                 var propertyNameAttribute = $.encoder.encodeForHTMLAttribute("id", node.properties[i].name, true);
                 var propertyNameAlpha = $.encoder.encodeForAlphaNumeric(node.properties[i].name);
                 var propertyNameHTML = $.encoder.encodeForHTML(node.properties[i].name);
-                var propertyValueAttribute = $.encoder.encodeForHTMLAttribute("val", node.properties[i].value, true);
+                var propertyValueAttribute = $.encoder.encodeForHTMLAttribute("val", node.properties[i].getValue(), true);
                 $('#properties').append("<div id='" + nodeIDAlpha + "-" + propertyNameAlpha + "' class='propEntry'><table><tr><td><b>" + propertyNameHTML + " </b></td><td><input type='text' class='input_text' id='input-" + nodeIDAlpha + "-" + propertyNameAlpha + "' value='" + propertyValueAttribute + "' data-propertyName='" + propertyNameAttribute + "'></td></tr></table></div>");
             
                 $('#input-' + nodeIDAlpha + '-' + propertyNameAttribute).change( function(evt) {
@@ -847,7 +1031,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         var prototypeEvents = getEvents.call( this, this.kernel, node.extendsID );
         for ( var key in prototypeEvents ) {
             var nodeEvent = prototypeEvents[key];
-            var prototypeEventNameAlpha = $.encoder.encodeForHTMLAttribute(key);
+            var prototypeEventNameAlpha = $.encoder.encodeForAlphaNumeric(key);
             var prototypeEventNameAttribute = $.encoder.encodeForHTMLAttribute("id", key, true);
             var prototypeEventNameHTML = $.encoder.encodeForHTML(key);
             $('#prototypeEvents').append("<div id='" + prototypeEventNameAlpha + "' class='methodEntry'><table><tr><td><b>" + prototypeEventNameHTML + " </b></td><td style='text-align:right;overflow:visible'><div id='rollover-" + prototypeEventNameAlpha + "' style='position:relative;left:12px'><input type='button' class='input_button_call' id='fire-" + prototypeEventNameAlpha + "' value='Fire' data-eventName='" + prototypeEventNameAttribute + "'><img id='arg-" + prototypeEventNameAlpha + "' data-eventName='" + prototypeEventNameAttribute + "' src='images/arrow.png' alt='arrow' style='position:relative;top:4px;left:2px;visibility:hidden'></div></td></tr></table></div>");
@@ -904,44 +1088,49 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         });
         $('#createScript > div:last').css('border-bottom-width', '3px');
 
-        // Add node scripts
-        $(topdownTemp).append("<div id='scripts'></div>");
-        for( var i=0; i < this.allScripts[ nodeID ].length; i++ )
-        {
-            var scriptFull = this.allScripts[nodeID][i].text;
-            if(scriptFull != undefined)
+        if ( this.allScripts[ nodeID ] !== undefined ) {
+            // Add node scripts
+            $(topdownTemp).append("<div id='scripts'></div>");
+            for( var i=0; i < this.allScripts[ nodeID ].length; i++ )
             {
-                var scriptName = scriptFull.substring(0, scriptFull.indexOf('='));
-                $('#scripts').append("<div id='script-" + nodeIDAlpha + "-" + i + "' class='childContainer'><div class='childEntry'><b>script </b>" + scriptName + "</div></div>");
-                $('#script-' + nodeIDAlpha + "-" + i).click( function(evt) {
-                    var scriptID = $(this).attr("id").substring($(this).attr("id").lastIndexOf('-')+1);
-                    viewScript.call(self, nodeID, scriptID, undefined);
-                });
+                var scriptFull = this.allScripts[nodeID][i].text;
+                if(scriptFull != undefined)
+                {
+                    var scriptName = scriptFull.substring(0, scriptFull.indexOf('='));
+                    $('#scripts').append("<div id='script-" + nodeIDAlpha + "-" + i + "' class='childContainer'><div class='childEntry'><b>script </b>" + scriptName + "</div></div>");
+                    $('#script-' + nodeIDAlpha + "-" + i).click( function(evt) {
+                        var scriptID = $(this).attr("id").substring($(this).attr("id").lastIndexOf('-')+1);
+                        viewScript.call(self, nodeID, scriptID, undefined);
+                    });
+                }
             }
+
+            $('#scripts > div:last').css('border-bottom-width', '3px');
         }
 
-        $('#scripts > div:last').css('border-bottom-width', '3px');
-
-        // Add prototype scripts
-        $(topdownTemp).append("<div id='prototypeScripts'></div>");
-        for( var i=0; i < this.allScripts[ node.extendsID ].length; i++ )
-        {
-            var scriptFull = this.allScripts[node.extendsID][i].text;
-            if(scriptFull != undefined)
+        if ( this.allScripts[ node.extendsID ] !== undefined ) {
+            // Add prototype scripts
+            $(topdownTemp).append("<div id='prototypeScripts'></div>");
+            for( var i=0; i < this.allScripts[ node.extendsID ].length; i++ )
             {
-                var nodeExtendsIDAlpha = $.encoder.encodeForAlphaNumeric(node.extendsID);
-                var nodeExtendsIDAttribute = $.encoder.encodeForHTMLAttribute("id", node.extendsID, true);
-                var scriptName = scriptFull.substring(0, scriptFull.indexOf('='));
-                $('#prototypeScripts').append("<div id='script-" + nodeExtendsIDAlpha + "-" + i + "' class='childContainer' data-nodeExtendsID='" + nodeExtendsIDAttribute + "'><div class='childEntry'><b>script </b>" + scriptName + "</div></div>");
-                $('#script-' + nodeExtendsIDAlpha + "-" + i).click( function(evt) {
-                    var extendsId = $.encoder.canonicalize($(this).attr("data-nodeExtendsID"));
-                    var scriptID = $(this).attr("id").substring($(this).attr("id").lastIndexOf('-')+1);
-                    viewScript.call(self, nodeID, scriptID, extendsId);
-                });
+                var scriptFull = this.allScripts[node.extendsID][i].text;
+                if(scriptFull != undefined)
+                {
+                    var nodeExtendsIDAlpha = $.encoder.encodeForAlphaNumeric(node.extendsID);
+                    var nodeExtendsIDAttribute = $.encoder.encodeForHTMLAttribute("id", node.extendsID, true);
+                    var scriptName = scriptFull.substring(0, scriptFull.indexOf('='));
+                    $('#prototypeScripts').append("<div id='script-" + nodeExtendsIDAlpha + "-" + i + "' class='childContainer' data-nodeExtendsID='" + nodeExtendsIDAttribute + "'><div class='childEntry'><b>script </b>" + scriptName + "</div></div>");
+                    $('#script-' + nodeExtendsIDAlpha + "-" + i).click( function(evt) {
+                        var extendsId = $.encoder.canonicalize($(this).attr("data-nodeExtendsID"));
+                        var scriptID = $(this).attr("id").substring($(this).attr("id").lastIndexOf('-')+1);
+                        viewScript.call(self, nodeID, scriptID, extendsId);
+                    });
+                }
             }
-        }
 
-        $('#prototypeScripts > div:last').css('border-bottom-width', '3px');
+            $('#prototypeScripts > div:last').css('border-bottom-width', '3px');
+        }
+        updateCameraProperties.call(self);
     }
 
     // -- createScript ----------------------------------------------------------------------
@@ -956,7 +1145,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         var nodeIDAlpha = $.encoder.encodeForAlphaNumeric(nodeID);
         
         $(topdownTemp).html("<div class='header'><img src='images/back.png' id='script-" + nodeIDAlpha + "-back' alt='back'/> script</div>");
-        jQuery('#script-' + nodeIDAlpha + '-back').click ( function(evt) {
+        $('#script-' + nodeIDAlpha + '-back').click ( function(evt) {
             self.editingScript = false;
             drillBack.call(self, nodeID);
 
@@ -969,13 +1158,13 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         $("#create-" + nodeIDAlpha).click ( function(evt) {
             self.kernel.execute( nodeID, $("#newScriptArea").val() );
         });
-        jQuery('#newScriptArea').focus( function(evt) { 
+        $('#newScriptArea').focus( function(evt) { 
             // Expand the script editor
             self.editingScript = true;
             $('#editor').animate({ 'left' : "-500px" }, 175);
             $('.vwf-tree').animate({ 'width' : "500px" }, 175);
         });
-        jQuery('#newScriptArea').keydown( function(evt) { 
+        $('#newScriptArea').keydown( function(evt) { 
             evt.stopPropagation();
         });
 
@@ -998,10 +1187,9 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         var nodeIDAlpha = $.encoder.encodeForAlphaNumeric(nodeID);
         
         $(topdownTemp).html("<div class='header'><img src='images/back.png' id='script-" + nodeIDAlpha + "-back' alt='back'/> script</div>");
-        jQuery('#script-' + nodeIDAlpha + '-back').click ( function(evt) {
+        $('#script-' + nodeIDAlpha + '-back').click ( function(evt) {
             self.editingScript = false;
-            var id = $(this).attr("id").substring(7, $(this).attr("id").lastIndexOf('-'));
-            drillBack.call(self, id);
+            drillBack.call(self, nodeID);
 
             // Return editor to normal width
             $('#editor').animate({ 'left' : "-260px" }, 175);
@@ -1022,13 +1210,13 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 self.allScripts[nodeID][s_id].text = undefined;
                 self.kernel.execute( nodeID, $("#scriptTextArea").val() );
             });
-            jQuery('#scriptTextArea').focus( function(evt) { 
+            $('#scriptTextArea').focus( function(evt) { 
                 // Expand the script editor
                 self.editingScript = true;
                 $('#editor').animate({ 'left' : "-500px" }, 175);
                 $('.vwf-tree').animate({ 'width' : "500px" }, 175);
             });
-            jQuery('#scriptTextArea').keydown( function(evt) { 
+            $('#scriptTextArea').keydown( function(evt) { 
                 evt.stopPropagation();
             });
         }
@@ -1052,7 +1240,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         var methodNameHTML = $.encoder.encodeForHTML(methodName);
      
         $(topdownTemp).html("<div class='header'><img src='images/back.png' id='" + methodNameAlpha + "-back' alt='back'/> " + methodNameHTML + "<input type='button' class='input_button_call' id='call' value='Call' style='float:right;position:relative;top:5px;right:33px'></input></div>");
-        jQuery('#' + methodNameAlpha + '-back').click ( function(evt) {
+        $('#' + methodNameAlpha + '-back').click ( function(evt) {
             
             drillUp.call(self, nodeID);
         });
@@ -1080,10 +1268,10 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 {
                     var prmtr = $('#input-param'+ i).val();
                     try {
-                        prmtr = JSON.parse($.encoder.canonicalize(prmtr));
+                        prmtr = JSON.parse(JSON.stringify($.encoder.canonicalize(prmtr)));
                         parameters.push( prmtr );
                     } catch (e) {
-                        this.logger.error('Invalid Value');
+                        self.logger.error('Invalid Value');
                     }
                 }
             }
@@ -1110,7 +1298,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         var eventNameHTML = $.encoder.encodeForHTML(eventName);
      
         $(topdownTemp).html("<div class='header'><img src='images/back.png' id='" + eventNameAlpha + "-back' alt='back'/> " + eventNameHTML + "<input type='button' class='input_button_call' id='fire' value='Fire' style='float:right;position:relative;top:5px;right:33px'></input></div>");
-        jQuery('#' + eventNameAlpha + '-back').click ( function(evt) {
+        $('#' + eventNameAlpha + '-back').click ( function(evt) {
             drillUp.call(self, nodeID);
         });
 
@@ -1141,7 +1329,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                         arg = JSON.parse($.encoder.canonicalize(arg));
                         args.push( arg );
                     } catch (e) {
-                        this.logger.error('Invalid Value');
+                        self.logger.error('Invalid Value');
                     }
                 }
             }
@@ -1168,6 +1356,31 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                 
         return prototypes;
     }
+
+    function createProperty( node, propertyName, propertyValue ) {
+        var property = {
+            name: propertyName,
+            rawValue: propertyValue,
+            value: undefined,
+            getValue: function() {
+                var propertyValue;
+                if ( this.value == undefined ) {
+                    try {
+                        propertyValue = utility.transform( this.rawValue, utility.transforms.transit );
+                        this.value = JSON.stringify( propertyValue );
+                    } catch (e) {
+                        this.logger.warnx( "createdProperty", nodeID, this.propertyName, this.rawValue,
+                            "stringify error:", e.message );
+                        this.value = this.rawValue;
+                    }
+                }
+                return this.value;
+            }
+        };
+
+        return property;
+    }
+
 
     function getProperties( kernel, extendsID ) {
         var pTypes = getPrototypes( kernel, extendsID );
@@ -1256,7 +1469,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
         if(!this.timelineInit)
         {
-            jQuery('#time_control').append("<div class='header'>Timeline</div>" + 
+            $('#time_control').append("<div class='header'>Timeline</div>" + 
                 "<div style='text-align:center;padding-top:10px'><span><button id='play'></button><button id='stop'></button></span>" +
                 "<span><span class='rate slider'></span>&nbsp;" + 
                 "<span class='rate vwf-label' style='display: inline-block; width:8ex'></span></span></div>");
@@ -1271,16 +1484,16 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
             var state = {};
 
-            jQuery.get(
+            $.get(
                 "admin/state", 
                 undefined, 
                 function( data ) {
                     state = data;
 
-                    jQuery( "button#play" ).button( "option", state.playing ? options.pause : options.play );
-                    jQuery( "button#stop" ).button( "option", "disabled", state.stopped );
+                    $( "button#play" ).button( "option", state.playing ? options.pause : options.play );
+                    $( "button#stop" ).button( "option", "disabled", state.stopped );
 
-                    jQuery( ".rate.slider" ).slider( "value", Math.log( state.rate ) / Math.LN10 );
+                    $( ".rate.slider" ).slider( "value", Math.log( state.rate ) / Math.LN10 );
 
                     if ( state.rate < 1.0 ) {
                         var label_rate = 1.0 / state.rate;
@@ -1297,48 +1510,48 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                         label = label + " &times;";
                     }
 
-                    jQuery( ".rate.vwf-label" ).html( label );
+                    $( ".rate.vwf-label" ).html( label );
                 }, 
                 "json" 
             );
 
-            jQuery( "button#play" ).button(
+            $( "button#play" ).button(
                 options.pause
             ). click( function() {
-                jQuery.post(
+                $.post(
                     state.playing ? "admin/pause" : "admin/play", 
                     undefined, 
                     function( data ) {
                         state = data;
 
-                        jQuery( "button#play" ).button( "option", state.playing ? options.pause : options.play );
-                        jQuery( "button#stop" ).button( "option", "disabled", state.stopped );
+                        $( "button#play" ).button( "option", state.playing ? options.pause : options.play );
+                        $( "button#stop" ).button( "option", "disabled", state.stopped );
                     },
                     "json" 
                 );
             } );
 
 
-            jQuery( "button#stop" ).button(
+            $( "button#stop" ).button(
                 options.stop
             ). click( function() {
-                jQuery.post(
+                $.post(
                     "admin/stop", 
                     undefined, 
                     function( data ) {
                         state = data;
 
-                        jQuery( "button#play" ).button( "option", state.playing ? options.pause : options.play );
-                        jQuery( "button#stop" ).button( "option", "disabled", state.stopped );
+                        $( "button#play" ).button( "option", state.playing ? options.pause : options.play );
+                        $( "button#stop" ).button( "option", "disabled", state.stopped );
                     }, 
                     "json" 
                 );
             } );
 
-            jQuery( ".rate.slider" ).slider(
+            $( ".rate.slider" ).slider(
                 options.rate
             ) .bind( "slide", function( event, ui ) {
-                jQuery.get( 
+                $.get( 
                     "admin/state", 
 
                     { "rate": Math.pow( 10, Number(ui.value) ) }, 
@@ -1346,7 +1559,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                     function( data ) {
                         state = data;
 
-                        jQuery( ".rate.slider" ).slider( "value", Math.log( state.rate ) / Math.LN10 );
+                        $( ".rate.slider" ).slider( "value", Math.log( state.rate ) / Math.LN10 );
 
                         if ( state.rate < 1.0 ) {
                             var label_rate = 1.0 / state.rate;
@@ -1363,7 +1576,7 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
                             label = label + " &times;";
                         }
 
-                        jQuery( ".rate.vwf-label" ).html( label );
+                        $( ".rate.vwf-label" ).html( label );
                     }, 
                     "json"
                 );
@@ -1390,9 +1603,9 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
         if(!this.aboutInit)
         {
-            jQuery('#about_tab').append("<div class='header'>About</div>" + 
+            $('#about_tab').append("<div class='header'>About</div>" + 
                 "<div class='about'><p style='font:bold 12pt Arial'>Virtual World Framework</p>" +
-                "<p><b>Version: </b>" + version.join(".") + "</p>" +
+                "<p><b>Version: </b>" + version.toString() + "</p>" +
                 "<p><b>Site: </b><a href='http://virtualworldframework.com' target='_blank'>http://virtualworldframework.com</a></p>" +
                 "<p><b>Source: </b><a href='https://github.com/virtual-world-framework' target='_blank'>https://github.com/virtual-world-framework</a></p></div>");
 
@@ -1550,13 +1763,11 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
         {
             var xhr = new XMLHttpRequest();
 
+            // Save State Information
             var state = vwf.getState();
 
             var timestamp = state["queue"].time;
             timestamp = Math.round(timestamp * 1000);
-
-            // Remove queue component of state
-            delete state["queue"];
 
             var objectIsTypedArray = function( candidate ) {
                 var typedArrayTypes = [
@@ -1596,16 +1807,76 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
             json = $.encoder.encodeForURL(json);
 
             var path = window.location.pathname;
-            var root = path.substring(1, path.length - 18);
-            var inst = path.substring(path.length-17, path.length-1);
+            var pathSplit = path.split('/');
+            if ( pathSplit[0] == "" ) {          
+                pathSplit.shift();
+            }
+            if ( pathSplit[ pathSplit.length - 1 ] == "" ) {
+                pathSplit.pop();
+            }            
+            var inst = undefined;
+            var instIndex = pathSplit.length - 1;
+            if ( pathSplit.length > 2 ) {
+                if ( pathSplit[ pathSplit.length - 2 ] == "load" ) {
+                    instIndex = pathSplit.length - 3;
+                }
+            }
+            if ( pathSplit.length > 3 ) {
+                if ( pathSplit[ pathSplit.length - 3 ] == "load" ) {
+                    instIndex = pathSplit.length - 4;
+                }
+            }
+            inst = pathSplit[ instIndex ];
+
+            var root = "";
+            for ( var i=0; i < instIndex; i++ ) {
+                if ( root != "" ) {
+                    root = root + "/";
+                } 
+                root = root + pathSplit[i];
+            }
 
             if(filename == '') filename = inst;
 
             if(root.indexOf('.vwf') != -1) root = root.substring(0, root.lastIndexOf('/'));
 
-            xhr.open("POST", "/"+root, true);
+            xhr.open("POST", "/"+root+"/save/"+filename, true);
             xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-            xhr.send("root="+root+"&filename="+filename+"&inst="+inst+"&timestamp="+timestamp+"&jsonState="+json);
+            xhr.send("root="+root+"/"+filename+"&filename=saveState&inst="+inst+"&timestamp="+timestamp+"&extension=.vwf.json"+"&jsonState="+json);
+
+            // Save Config Information
+            var config = {"info":{}, "model":{}, "view":{} };
+
+            // Save browser title
+            config["info"]["title"] = $('title').html();
+
+            // Save model drivers
+            Object.keys(vwf_view.kernel.kernel.models).forEach(function(modelDriver) {
+                if(modelDriver.indexOf('vwf/model/') != -1) config["model"][modelDriver] = "";
+            });
+
+            // If neither glge or threejs model drivers are defined, specify nodriver
+            if(config["model"]["vwf/model/glge"] === undefined && config["model"]["vwf/model/threejs"] === undefined) config["model"]["nodriver"] = "";
+
+            // Save view drivers and associated parameters, if any
+            Object.keys(vwf_view.kernel.kernel.views).forEach(function(viewDriver) {
+                if(viewDriver.indexOf('vwf/view/') != -1)
+                {
+                    if( vwf_view.kernel.kernel.views[viewDriver].parameters )
+                    {
+                        config["view"][viewDriver] = vwf_view.kernel.kernel.views[viewDriver].parameters;
+                    }
+                    else config["view"][viewDriver] = "";
+                }
+            });
+
+            var jsonConfig = $.encoder.encodeForURL( JSON.stringify( config ) );
+
+            // Save config file to server
+            var xhrConfig = new XMLHttpRequest();
+            xhrConfig.open("POST", "/"+root+"/save/"+filename, true);
+            xhrConfig.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            xhrConfig.send("root="+root+"/"+filename+"&filename=saveState&inst="+inst+"&timestamp="+timestamp+"&extension=.vwf.config.json"+"&jsonState="+jsonConfig);
         }
 
         else
@@ -1616,17 +1887,40 @@ define( [ "module", "version", "vwf/view", "vwf/utility" ], function( module, ve
 
     // -- LoadSavedState --------------------------------------------------------------------------
 
-    function loadSavedState(filename) 
+    function loadSavedState(filename, applicationpath, revision) 
     {
         this.logger.info("Loading: " + filename);
 
         // Redirect until setState ID conflict is resolved
         var path = window.location.pathname;
-        var root = path.substring(1, path.length - 18);
         var inst = path.substring(path.length-17, path.length-1);
-
-        if(root.indexOf('.vwf') != -1) root = root.substring(0, root.lastIndexOf('/'));
-        window.location.pathname = root + '/' + filename.substring(0, filename.lastIndexOf('.')) + '/' + inst;
+        
+        var pathSplit = path.split('/');
+        if ( pathSplit[0] == "" ) {          
+            pathSplit.shift();
+        }
+        if ( pathSplit[ pathSplit.length - 1 ] == "" ) {
+            pathSplit.pop();
+        }            
+        var inst = undefined;
+        var instIndex = pathSplit.length - 1;
+        if ( pathSplit.length > 2 ) {
+            if ( pathSplit[ pathSplit.length - 2 ] == "load" ) {
+                instIndex = pathSplit.length - 3;
+            }
+        }
+        if ( pathSplit.length > 3 ) {
+            if ( pathSplit[ pathSplit.length - 3 ] == "load" ) {
+                instIndex = pathSplit.length - 4;
+            }
+        }
+        inst = pathSplit[ instIndex ];
+        if ( revision ) {
+            window.location.pathname = applicationpath + "/" + inst + '/load/' + filename + '/' + revision + '/';
+        }
+        else {
+            window.location.pathname = applicationpath + "/" + inst + '/load/' + filename + '/';
+        }
 
         // $.get(filename,function(data,status){
         //     vwf.setState(data);

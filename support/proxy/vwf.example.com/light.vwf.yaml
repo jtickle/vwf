@@ -20,7 +20,14 @@
 extends: http://vwf.example.com/node3.vwf
 properties: 
 
-  ## The type of light (point, directional, spot)
+  ## Does this light cast shadows
+  ## 
+  ## @name light.vwf#lightType
+  ## @property
+
+  castShadows: false
+  
+  ## The type of light (point, directional, spot, hemisphere)
   ## 
   ## @name light.vwf#lightType
   ## @property
@@ -31,6 +38,7 @@ properties:
         case "point":
         case "directional":
         case "spot":
+        case "hemisphere":
           this.lightType = value;
           break;
       }
@@ -41,137 +49,108 @@ properties:
   ## @name light.vwf#enable
   ## @property
 
-  enable:
+  enable: true
 
-  ## Constant attenuation
+  ## Sets the position of the light
   ## 
-  ## @name light.vwf#constantAttenuation
+  ## @name light.vwf#color
   ## @property
 
-  constantAttenuation:
-
-  ## Linear attenuation
-  ## 
-  ## @name light.vwf#linearAttenuation
-  ## @property
-
-  linearAttenuation:
-
-  ## Quadratic attenuation
-  ## 
-  ## @name light.vwf#quadraticAttenuation
-  ## @property
-
-  quadraticAttenuation:
-
-  ## Enables the spotCosCutOff calculations
-  ## 
-  ## @name light.vwf#spotCutOff
-  ## @property
-
-  spotCutOff:
-
-  ## Represents the cosine ofthe angle beyond which the light is cut off
-  ## 
-  ## @name light.vwf#spotCosCutOff
-  ## @property
-
-  spotCosCutOff:
-
-  ## Amount of "spottiness" of the spotlight
-  ## 
-  ## @name light.vwf#spotExponent
-  ## @property
-
-  spotExponent:
+  position: [ 0, 1, 0 ]
 
   ## Sets the color of the light
   ## 
   ## @name light.vwf#color
   ## @property
 
-  color:
+  color: [ 255, 255, 255 ]
 
-  ## Diffuse value
+  ## Sets the ground color of the light
   ## 
-  ## @name light.vwf#diffuse
+  ## @name light.vwf#groundColor
   ## @property
 
-  diffuse:
+  groundColor: [ 255, 255, 255 ]
 
-  ## Specular value
-  ## 
-  ## @name light.vwf#specular
-  ## @property
-
-  specular:
-
-  ## The number of samples for shadow
-  ## 
-  ## @name light.vwf#samples
-  ## @property
-
-  samples:
-
-  ## The softness value of shadow
-  ## 
-  ## @name light.vwf#softness
-  ## @property
-
-  softness:
-
-  ## The Shadow Buffer Memory size for the resolution height of the shadow
-  ## 
-  ## @name light.vwf#bufferHeight
-  ## @property
-
-  bufferHeight:
-
-  ## The Shadow Buffer Memory size for the resolution width of the shadow
-  ## 
-  ## @name light.vwf#bufferWidth
-  ## @property
-
-  bufferWidth:
-
-  ## The shadow buffer bias. Map bias moves the shadow toward or away from the shadow-casting object(s)
-  ## 
-  ## @name light.vwf#shadowBias
-  ## @property
-
-  shadowBias:
-
-  ## The shadow casting distance
+  ## Distance value
   ## 
   ## @name light.vwf#distance
   ## @property
 
-  distance:
+  distance: 1000
 
-  ## The shadow casting flag. True if casting shadows is enabled.
+  ## Intensity value
   ## 
-  ## @name light.vwf#castShadows
+  ## @name light.vwf#intensity
   ## @property
 
-  castShadows:
+  intensity: 1
 
-  ## Sets the cascade levels
-  ## 
-  ## @name light.vwf#cascadeLevels
+  ## Shadow camera bottom value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraBottom
   ## @property
+  shadowCameraBottom: -100
 
-  cascadeLevels:
-
-  ## Sets the softness if this is a spot light
-  ## 
-  ## @name light.vwf#spotSoftness
+  ## Shadow camera left value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraLeft
   ## @property
+  shadowCameraLeft: -100
 
-  spotSoftness:
-
-  ## Sets the distance of the softness if this is a spot light
-  ## 
-  ## @name light.vwf#spotSoftness
+  ## Shadow camera right value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraRight
   ## @property
+  shadowCameraRight: 100
 
-  spotSoftnessDistance:
+  ## Shadow camera top value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraTop
+  ## @property
+  shadowCameraTop: 100
+
+  ## Shadow camera near value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraNear
+  ## @property
+  shadowCameraNear: 0.1
+
+  ## Shadow camera far value
+  ## Used to define the frustum of the camera used to create shadows
+  ##
+  ## @name light.vwf#shadowCameraFar
+  ## @property
+  shadowCameraFar: 1000
+
+  ## Shadow darkness value
+  ## How dark the shadow is on a scale of 0 (no shadow) to 1 (pure black)
+  ##
+  ## @name light.vwf#shadowCameraFar
+  ## @property
+  shadowDarkness: 0.5
+
+  ## The height of the shadow map
+  ##
+  ## @name light.vwf#shadowMapHeight
+  ## @property
+  shadowMapHeight: 512
+
+  ## The width of the shadow map
+  ##
+  ## @name light.vwf#shadowMapWidth
+  ## @property
+  shadowMapWidth: 512
+
+  ## The shadow bias of the shadow
+  ##
+  ## @name light.vwf#shadowBias
+  ## @property
+  shadowBias: 0
+
+  target: [ 0, 0, 0 ]

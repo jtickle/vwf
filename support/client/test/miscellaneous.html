@@ -8,7 +8,6 @@
 
     <script type="text/javascript" src="qunit.js"></script>
 
-    <script type="text/javascript" src="../lib/jquery-1.7.1.js"></script>
     <script type="text/javascript" src="../lib/async.js"></script>
 
     <script type="text/javascript" src="../lib/crypto.js"></script>
@@ -25,25 +24,31 @@
 
       require( {
 
-        baseUrl: "../lib"
+        baseUrl: "../lib",
+        paths: {
+          jquery: "jquery-1.10.2.min",
+        },
 
       }, [
 
         "domReady",
+        "utility.js",
 
         // This is the common model implementation and an example model that connects the
         // simulation to a WebGL scene manager.
 
+        "jquery",
         "vwf/configuration",
         "vwf/kernel/model",
         "vwf/model/javascript",
         "vwf/model/object",
         "vwf/model/stage/log",
         "vwf/kernel/view",
+        "vwf/kernel/utility",
         "vwf/utility",
         "logger",
 
-      ], function( ready ) {
+      ], function( ready, testUtility ) {
 
         ready( function() {
 
@@ -58,12 +63,14 @@
 
           asyncTest( "node and prototype initializers", function() {
   
-            create_node_prototype_with_initializers( true, true, function( nodeID, prototypeID ) {
+            create_node_prototype_with_initializers( true, true, function( nodeID, prototypeID, cleanup ) {
 
                 equal( vwf.getProperty( nodeID, "property" ), "node", "node's initialization" );
                 equal( vwf.getProperty( prototypeID, "property" ), "prototype", "prototype's initialization" );
 
+                cleanup();
                 start();
+
             } );
 
           } );
@@ -72,12 +79,14 @@
 
           asyncTest( "node initializer", function() {
   
-            create_node_prototype_with_initializers( true, false, function( nodeID, prototypeID ) {
+            create_node_prototype_with_initializers( true, false, function( nodeID, prototypeID, cleanup ) {
 
                 equal( vwf.getProperty( nodeID, "property" ), "node", "node's initialization" );
                 equal( vwf.getProperty( prototypeID, "property" ), null, "prototype's initialization" );
 
+                cleanup();
                 start();
+
             } );
 
           } );
@@ -86,12 +95,14 @@
 
           asyncTest( "prototype initializer", function() {
   
-            create_node_prototype_with_initializers( false, true, function( nodeID, prototypeID ) {
+            create_node_prototype_with_initializers( false, true, function( nodeID, prototypeID, cleanup ) {
 
                 equal( vwf.getProperty( nodeID, "property" ), "prototype", "node's initialization" );
                 equal( vwf.getProperty( prototypeID, "property" ), "prototype", "prototype's initialization" );
 
+                cleanup();
                 start();
+
             } );
 
           } );
@@ -100,12 +111,14 @@
 
           asyncTest( "no initializers", function() {
   
-            create_node_prototype_with_initializers( false, false, function( nodeID, prototypeID ) {
+            create_node_prototype_with_initializers( false, false, function( nodeID, prototypeID, cleanup ) {
 
                 equal( vwf.getProperty( nodeID, "property" ), null, "node's initialization" );
                 equal( vwf.getProperty( prototypeID, "property" ), null, "prototype's initialization" );
 
+                cleanup();
                 start();
+
             } );
 
           } );
@@ -127,8 +140,11 @@
                 node.properties = node.properties || {};
                 node.properties.property = node.properties.property || null;
 
-                vwf.createChild( 0, unique_name( "node" ), node, undefined, function( nodeID ) {
-                    callback( nodeID, prototypeID );
+                vwf.createChild( 0, testUtility.uniqueName( "node" ), node, undefined, function( nodeID ) {
+                    callback( nodeID, prototypeID, function() {
+                      vwf.deleteNode( nodeID );
+                      vwf.deleteNode( prototypeID );
+                    } );
                 } );
 
             } );
@@ -160,14 +176,6 @@
 
             create_node_prototype( node, prototype, callback /* ( nodeID, prototypeID ) */ );
 
-          }
-
-          // Create a unique name from a base.
-
-          var sequence = 0;
-
-          function unique_name( base ) {
-            return base + "-" + ( ++sequence );
           }
 
         } );

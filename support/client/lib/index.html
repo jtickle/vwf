@@ -23,23 +23,23 @@
   <head>
 
     <title>Virtual World Framework</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
-    <!-- The Virtual World Framework makes use of the jQuery library.                            -->
+    <meta name="viewport" content="initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+
+    <script type="text/javascript" src="compatibilitycheck.js"></script>
+
+    <script type="text/javascript" src="socket.io.js"></script>
+    <script type="text/javascript" src="socket.io-sessionid-patch.js"></script>
 
     <script type="text/javascript" src="require.js"></script>
 
-    <script type="text/javascript" src="jquery-1.7.1.js"></script>
-	<script type="text/javascript" src="bootstrap.min.js"></script>
-    <script type="text/javascript" src="jquery-ui-1.8.16.custom.js"></script>
     <script type="text/javascript" src="async.js"></script>
 
-
     <script type="text/javascript" src="closure/base.js"></script>
+    <script type="text/javascript">goog.require('goog.vec.Vec2')</script>
     <script type="text/javascript">goog.require('goog.vec.Mat4')</script>
     <script type="text/javascript">goog.require('goog.vec.Quaternion')</script>
-
-    <script type="text/javascript">if (!window.WebSocket && window.MozWebSocket) window.WebSocket=window.MozWebSocket</script> <!-- for Firefox 5 -->
-    <script type="text/javascript" src="socket.io.js"></script>
 
     <script type="text/javascript" src="crypto.js"></script>
     <script type="text/javascript" src="md5.js"></script>
@@ -48,8 +48,8 @@
     <script type="text/javascript" src="mash.js"></script>
 
     <script type="text/javascript" src="Class.create.js"></script>
-    <script type="text/javascript" src="jquery-encoder-0.1.0.js"></script>
     <script type="text/javascript" src="rAF.js"></script>
+    <script type="text/javascript" src="performance.now-polyfill.js"></script>
 
     <!-- This is the main client library. vwf.js creates a framework manager and attaches it to  -->
     <!-- the global window object as window.vwf. All access to the framework is through that     -->
@@ -64,102 +64,81 @@
     <!-- in a shared world. Views may accept external input -such as pointer and key events or   -->
     <!-- directives from a connection to an outside engine that is not visible to all users- but -->
     <!-- may only affect the simulation indirectly through the synchronization server.           -->
-
-    <script type="text/javascript">var connected = window.location.search.indexOf( "?connected" ) == 0</script>
-    <script type="text/javascript">var cesium = window.location.search.indexOf( "?cesium" ) == 0</script>
-    <script type="text/javascript">connected && document.write( "<scr" + "ipt type='text/javascript' src='http://www.google.com/jsapi?hl=en&amp;key=ABQIAAAAwbkbZLyhsmTCWXbTcjbgbRSzHs7K5SvaUdm8ua-Xxy_-2dYwMxQMhnagaawTo7L1FE1-amhuQxIlXw'></scr" + "ipt>")</script>
-    <script type="text/javascript">connected && google.load( "earth", "1" )</script>
-
+    
     <script type="text/javascript">
+        // Users can specify which libraries the application will load by adding parameters to the URL.
+        // Model libraries are specified as a query parameter and view libraries as a hash fragment.
+        var queryString = window.location.search.substring(1);
+        var hashString = window.location.hash.substring(2);
+        var userLibraries = {model:{}, view:{}};
+        var googleEarth = false;
+        var match;
+        var application;
+        var regex = /([^&=]+)=?([^&]*)/g;
 
-        require( [
+        var requireConfig = {
+            paths: {
+                jquery: "jquery-1.10.2.min",
+                "jquery-ui": "jquery-ui-1.10.3.custom.min",
+                hammer: "jquery.hammer",
+            },
+            shim: {                
+                "jquery-ui": {
+                    deps: ["jquery"],
+                    exports: "$"
+                },
+                "jquery-encoder-0.1.0": ["jquery"],
+                "hammer": {
+                    deps: ["jquery"],
+                    exports: "Hammer"
+                }
+            }
+        };
+        require(requireConfig, ["jquery", "jquery-encoder-0.1.0"], function($) {
+            while(match = regex.exec(queryString)) {
+                var key = $.encoder.canonicalize(match[1]);
+                var parameters = $.encoder.canonicalize(match[2]);
+                if(key == "application") {
+                    // Get the application specification if one is provided in the query string.
+                    application = parameters;
+                }
+                else {
+                    try {
+                        parameters = JSON.parse(parameters);
+                    }
+                    catch(e) {
+                    }
+                    userLibraries["model"]["vwf/model/" + key] = (parameters && parameters != "") ? parameters : undefined;
+                }
+            }
 
-            "domReady",
+            while(match = regex.exec(hashString)) {
+                var key = $.encoder.canonicalize(match[1]);
+                var parameters = $.encoder.canonicalize(match[2]);
+                try {
+                    parameters = JSON.parse(parameters);
+                }
+                catch(e) {
+                }
+                userLibraries["view"]["vwf/view/" + key] = (parameters && parameters != "") ? parameters : undefined;
+                if(key == "google-earth") {
+                    googleEarth = true;
+                }
+            }
 
-            // This is the common model implementation and an example model that connects the
-            // simulation to a WebGL scene manager.
+            googleEarth && document.write( "<scr" + "ipt type='text/javascript' src='http://www.google.com/jsapi?hl=en&amp;key=ABQIAAAAwbkbZLyhsmTCWXbTcjbgbRSzHs7K5SvaUdm8ua-Xxy_-2dYwMxQMhnagaawTo7L1FE1-amhuQxIlXw'></scr" + "ipt>");
 
-            "vwf/configuration",
-            "vwf/kernel/model",
-            "vwf/model/javascript",
-            "vwf/model/jiglib",
-            "vwf/model/glge",
-            "vwf/model/scenejs",
-            "vwf/model/object",
-            "vwf/model/stage/log",
-            "vwf/kernel/view",
-            "vwf/view/document",
-            "vwf/view/editor",
-            "vwf/view/glge",
-            "vwf/utility",
-            connected && "vwf/view/googleEarth",
-            cesium && "vwf/view/cesium"
-			
-        ], function( ready ) {
-
-            ready( function() {
-
-                // With the scripts loaded, we must initialize the framework. vwf.initialize()
-                // accepts three parameters: a world specification, model configuration parameters,
-                // and view configuration parameters.
-
-                vwf.initialize(
-
-                    // This is the world specification. The world may be specified using a component
-                    // literal as shown here, or the specification may be placed in a network-
-                    // visible location and specified here as a URI or as a query parameter to this
-                    // index page.
-     
-                    // As a literal:
-                    //     { extends: "http://vwf.example.com/example-type.vwf", properties: { ... }, ... }
-     
-                    // As a string:
-                    //     "http://vwf.example.com/example-type.vwf",
-     
-                    // These are the model configurations. Each key within the configuration object
-                    // is a model name, and each value is an argument or an array of arguments to be
-                    // passed to the model's constructor.
-     
-                    // With an array of arguments for the "example" model:
-                    //     { example: [ p1, p2, ... ], // ==> new vwf.modules.example( vwf, p1, p2, ... ) }
-     
-                    // As a single argument to the "html" view:
-                    //     { html: "#vwf-root" // ==> new vwf.modules.html( vwf, "#vwf-root" ) }
-     
-                    [
-                        "vwf/model/javascript",
-                        "vwf/model/jiglib",
-                        "vwf/model/glge",
-                        "vwf/model/object",
-                    ],
-
-                    // These are the view configurations. They use the same format as the model
-                    // configurations.
-
-                    [
-						{ "vwf/view/glge": "#vwf-root" },
-                        "vwf/view/document",
-                        "vwf/view/editor",
-						connected && "vwf/view/googleEarth",
-						cesium && "vwf/view/cesium"
-                    ]
-
-                );
-
-            } );
-
-        } );
-
+            vwf.loadConfiguration(application, userLibraries, compatibilityCheck);
+        });
     </script>
+    <script type="text/javascript">googleEarth && google.load( "earth", "1" )</script>
+    
 
     <!-- This is the common view implementation and an example view that summarizes the          -->
     <!-- simulation state in HTML on the main page.                                              -->
-    <script type="text/javascript" src="vwf/model/glge/glge-compiled.js"></script>
-    <script type="text/javascript" src="vwf/model/jiglib/jiglib.js"></script>
- 	<link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
+
     <link rel="stylesheet" type="text/css" href="index.css" />
     <link rel="stylesheet" type="text/css" href="vwf/view/editor/editor.css" />
-    <link rel="stylesheet" type="text/css" href="jquery-ui-1.8.16.custom.css" />
 
   </head>
 
@@ -171,40 +150,16 @@
 
     <!-- The main content renders to "#vwf-root", the item with the id "vwf-root".               -->
 
+    <!-- The loading spinner -->
+    <div id="vwf-loading-spinner" class="pace pace-active"><div class="pace-activity"></div></div>
+
+    <div id="incompatibleBrowser">
+        <div>
+            <span style="color:#3090C7;"><br/><br/>Your browser does not support Virtual World Framework. Please review our <a href='https://virtual.wf/requirements.html'>requirements</a> for supported browser versions.</span>
+        </div>
+    </div>
     <div id="vwf-root"></div>
-	
-<!-- Overlay div to display loading information> -->
-<div id="loadVWFModal" class="modal">
-  <div class="modal-header">
-        <img src="images/logo.png" style="width:100%;"/>
-  </div>
-  <div class="modal-body">
-		<div>
-			<table style="width:100%;">
-				<tr>
-					<td><span id='WGL' class='req'></span></td>
-					<td><span id='ES5' class='req'></span></td>
-					<td><span id='WS' class='req'></span></td>
-				</tr>
-			</table>
-			<div class="progress progress-striped active">
-				<div class="bar" id="loadVWFProgressBar" style="width:0%;"></div>
-			</div>
-		</div>
-  </div>
-  <div class="modal-footer">
-
-		<div id='loadText' style="font-family: 'Droid Sans',sans-serif;font-size: 14px;line-height: 20px;color: #999;text-alignment:left;width:100%"> </div>
-  </div>
-</div>
-	
-
-    <script type="text/javascript" src="compatibility.js"></script>
-	<script type="text/javascript" src="centerinclient.js"></script>
-    <script type="text/javascript">
-        updateOverlay();
-    </script>
-
+  
   </body>
 
 </html>

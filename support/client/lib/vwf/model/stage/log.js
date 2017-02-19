@@ -38,7 +38,7 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
                 switch ( modelFunctionName ) {
 
-                    case "creatingNode": // nodeID, childID, childExtendsID, childImplementsIDs, childSource, childType, childURI, childName, callback /* ( ready ) */
+                    case "creatingNode": // nodeID, childID, childExtendsID, childImplementsIDs, childSource, childType, childIndex, childName, callback /* ( ready ) */
                         logees[8] = undefined; // callback /* ( ready ) */
                         break;
 
@@ -76,7 +76,7 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
             switch ( kernelFunctionName ) {
 
-                case "createNode": // nodeComponent, callback /* ( nodeID ) */
+                case "createNode": // nodeComponent, [ nodeAnnotation, ] [ baseURI, ] callback /* ( nodeID ) */
                     objectIsComponent( logees[0] ) && ( logees[0] = JSON.stringify( loggableComponent( logees[0] ) ) ); // nodeComponent
                     break;
 

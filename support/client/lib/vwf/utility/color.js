@@ -31,7 +31,7 @@ define(function(){
 		'palegreen':'#98FB98','paleturquoise':'#AFEEEE','palevioletred':'#D87093','papayawhip':'#FFEFD5','peachpuff':'#FFDAB9','peru':'#CD853F',
 		'pink':'#FFC0CB','plum':'#DDA0DD','powderblue':'#B0E0E6','purple':'#800080','red':'#FF0000','rosybrown':'#BC8F8F','royalblue':'#4169E1',
 		'saddlebrown':'#8B4513','salmon':'#FA8072','sandybrown':'#F4A460','seagreen':'#2E8B57','seashell':'#FFF5EE','sienna':'#A0522D','silver':'#C0C0C0',
-		'skyblue':'#87CEEB','slateblue':'#6A5ACD','slategray':'#708090','slategrey':'#708090','snow':'#FFFAFA','springgreen':'#00FF7F',
+		'skyblue':'#87CEEB','slateblue':'#6A5ACD','slategray':'#708090','slategrey':'#708090','snow':'#FFFAFA','springgreen':'#00FF7F','yellow':'#FFFF00',
 		'steelblue':'#4682B4','tan':'#D2B48C','teal':'#008080','thistle':'#D8BFD8','tomato':'#FF6347','turquoise':'#40E0D0','violet':'#EE82EE'
 	};
 	
@@ -57,6 +57,9 @@ define(function(){
 	var isHSL = /^hsla?\((\d{1,3}?),\s*(\d{1,3}%),\s*(\d{1,3}%)(,\s*[01]?\.?\d*)?\)$/;
 	var isRGB = /^rgba?\((\d{1,3}%?),\s*(\d{1,3}%?),\s*(\d{1,3}%?)(,\s*[01]?\.?\d*)?\)$/;
 	var isPercent = /^\d+(\.\d+)*%$/;
+	var isString = function( s ) {
+        return ( typeof( s ) === 'string' || s instanceof String );
+    }
 
 	var hexBit = /([0-9a-f])/gi;
 	var leadHex = /^#/;
@@ -101,12 +104,66 @@ define(function(){
 			case (value instanceof Color) :
 				this.copy(value);
 				return this;
+			case ( isString( value ) ):
+				value = value.replace( /\s/g, '' );
+				switch(true){
+					case (namedColors.hasOwnProperty(value)) :
+						value = namedColors[value];
+						var stripped = value.replace(leadHex, '');
+						this.decimal(parseInt(stripped, 16));
+						return this;
+					case isHex.test(value) :
+						var stripped = value.replace(leadHex, '');
+						if(stripped.length == 3) {
+							stripped = stripped.replace(hexBit, '$1$1');
+						};
+						this.decimal(parseInt(stripped, 16));
+						return this;
+					case isRGB.test(value) :
+						var parts = value.match(matchRGB);
+						var alphaIsValid = !( isNaN( parseFloat( parts[5] ) ) );
+						this.red(p2v(parts[1]));
+						this.green(p2v(parts[2]));
+						this.blue(p2v(parts[3]));
+						this.alpha( alphaIsValid ? parseFloat( parts[5] ) : 1 );
+						this.output = alphaIsValid ? Color.RGBA : ( isPercent.test( parts[1] ) ? Color.PRGB : Color.RGB );
+						return this;
+					case isHSL.test(value) :  
+						var parts = value.match(matchHSL);
+						this.hue(parseInt(parts[1]));
+						this.saturation(parseInt(parts[2]));
+						this.lightness(parseInt(parts[3]));
+						this.alpha( isNaN( parseFloat( parts[5] ) ) ? 1 : parseFloat( parts[5] ) );
+						this.output = parts[5] ? 6: 5; 
+						return this;
+					default:
+						console.info( "WARNING: color not parsed" );
+						break;
+				};				
+				break;
 			default : 
 				switch(typeof value) {
 					case 'object' :
-						this.set(value);
+						if ( value instanceof Array ) {
+							if ( value.length == 3 ) {
+								this.red( p2v( value[0] ) );
+								this.green( p2v( value[1] ) );
+								this.blue( p2v( value[2] ) );
+								this.alpha( 1 );
+								this.output = Color.RGB;
+							} else if ( value.length == 4 ) {
+								this.red( p2v( value[0] ) );
+								this.green( p2v( value[1] ) );
+								this.blue( p2v( value[2] ) );
+								this.alpha( isNaN( parseFloat( value[3] ) ) ? 1 : parseFloat( value[3] ) );
+								this.output = Color.RGBA;								
+							}
+						} else {
+							this.set( value );
+						}
 						return this;
 					case 'string' :
+						value = value.replace( /\s/g, '' );
 						switch(true){
 							case (namedColors.hasOwnProperty(value)) :
 								value = namedColors[value];
@@ -122,20 +179,24 @@ define(function(){
 								return this;
 							case isRGB.test(value) :
 								var parts = value.match(matchRGB);
+								var alphaIsValid = !( isNaN( parseFloat( parts[5] ) ) );
 								this.red(p2v(parts[1]));
 								this.green(p2v(parts[2]));
 								this.blue(p2v(parts[3]));
-								this.alpha(parseFloat(parts[5]) || 1);
-								this.output = (isPercent.test(parts[1]) ? 2 : 1) + (parts[5] ? 2 : 0);
+								this.alpha( alphaIsValid ? parseFloat( parts[5] ) : 1 );
+								this.output = alphaIsValid ? Color.RGBA : ( isPercent.test( parts[1] ) ? Color.PRGB : Color.RGB );
 								return this;
 							case isHSL.test(value) :  
 								var parts = value.match(matchHSL);
 								this.hue(parseInt(parts[1]));
 								this.saturation(parseInt(parts[2]));
 								this.lightness(parseInt(parts[3]));
-								this.alpha(parseFloat(parts[5]) || 1);
+								this.alpha( isNaN( parseFloat( parts[5] ) ) ? 1 : parseFloat( parts[5] ) );
 								this.output = parts[5] ? 6: 5; 
 								return this;
+							default:
+								console.info( "WARNING: color not parsed" );
+								break;
 						};
 				};		
 			
@@ -143,7 +204,7 @@ define(function(){
 		return this;
 	};
 
-	
+
 	Color.prototype.clone = function(){
 		return new Color(this.decimal());
 	};
@@ -454,6 +515,14 @@ define(function(){
 		};
 		return this.getHex();
 	};
+
+	Color.prototype.toArray = function(){
+		if ( this._alpha != 1 ) {
+			return [ this._red, this._green, this._blue, this._alpha ];
+		} else {
+			return [ this._red, this._green, this._blue ];
+		}
+	};	
 	
 	Color.prototype._listeners = null;
 	Color.prototype._isSubscribed = function(type){

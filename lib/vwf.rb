@@ -45,17 +45,36 @@ set :component_template_types, [ :json, :yaml ]  # get from Component?
 
   end
 
+  # Serve files at "/proxy/<host>" from ^/support/proxy/<host>. We're pretending these come from
+  # another host.
+
+  get "/proxy/:host/*" do |host, path|
+
+    delegated_env = env.merge(
+      "PATH_INFO" => "/" + path
+    )
+
+    cascade = Rack::Cascade.new [
+      Rack::File.new( File.join VWF.settings.support, "proxy", host ),          # Proxied content from ^/support/proxy  # TODO: will match public_path/index.html which we don't really want
+      Application::Component.new( File.join VWF.settings.support, "proxy", host ) # A component, possibly from a template or as JSONP  # TODO: before public for serving plain json as jsonp?
+    ]
+
+    cascade.call delegated_env
+
+  end
+
   get Pattern.new do |public_path, application, instance, private_path|
-
+  
     logger.debug "VWF#get #{public_path} - #{application} - #{instance} - #{private_path}"
-
     # Redirect "/path/to/application" to "/path/to/application/", and
     # "/path/to/application/instance" to "/path/to/application/instance/". But XHR calls to
     # "/path/to/application" get the component data.
 
     if request.path_info[-1,1] != "/" && private_path.nil?
 
-      if instance.nil? && ! request.accept.include?( mime_type :html )  # TODO: pass component request through to normal delegation below?
+      if ! request.env["HTTP_USER_AGENT"].nil? && request.env["HTTP_USER_AGENT"].include?( "MSIE 8.0" ) # Redirect to unsupported browser page if using IE8.
+        redirect to "/web/unsupported.html"
+      elsif instance.nil? && ! request.accept.include?( mime_type :html )  # TODO: pass component request through to normal delegation below?
         Application::Component.new( settings.public_folder ).call env # A component, possibly from a template or as JSONP  # TODO: we already know the template file name with extension, but now Component has to figure it out again
       else
         redirect to request.path_info + "/" + ( request.query_string.length > 0 ? "?" + request.query_string : "" )
@@ -85,24 +104,6 @@ set :component_template_types, [ :json, :yaml ]  # get from Component?
     logger.debug "VWF#post #{public_path} - #{application} - #{instance} - #{private_path}"
 
     delegate_to_application public_path, application, instance, private_path
-
-  end
-
-  # Serve files at "/proxy/<host>" from ^/support/proxy/<host>. We're pretending these come from
-  # another host.
-
-  get "/proxy/:host/*" do |host, path|
-
-    delegated_env = env.merge(
-      "PATH_INFO" => "/" + path
-    )
-
-    cascade = Rack::Cascade.new [
-      Rack::File.new( File.join VWF.settings.support, "proxy", host ),          # Proxied content from ^/support/proxy  # TODO: will match public_path/index.html which we don't really want
-      Application::Component.new( File.join VWF.settings.support, "proxy", host ) # A component, possibly from a template or as JSONP  # TODO: before public for serving plain json as jsonp?
-    ]
-
-    cascade.call delegated_env
 
   end
 
@@ -157,7 +158,7 @@ set :component_template_types, [ :json, :yaml ]  # get from Component?
         "vwf.instance" => instance
       )
 
-      Application.new( delegated_env["vwf.root"] ).call delegated_env
+      Application.new( delegated_env ).call delegated_env
 
     end
 
@@ -168,7 +169,12 @@ set :component_template_types, [ :json, :yaml ]  # get from Component?
     end
 
   end
-
+  
+	not_found do
+		if request.url.include?('/web') or not request.url.match(/[v][w][f].\w*\z/)
+			[ 404, {'Content-Type' => 'text/html'}, File.read(File.join(File.dirname(__FILE__), '../public', '404.html')) ]
+		end
+	end
 end
 
 

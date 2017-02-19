@@ -37,7 +37,7 @@ define( [ "module", "vwf/model" ], function( module, model ) {
         // -- creatingNode -------------------------------------------------------------------------
 
         creatingNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
-            childSource, childType, childURI, childName, callback /* ( ready ) */ ) {
+            childSource, childType, childIndex, childName, callback /* ( ready ) */ ) {
         },
 
         // -- deletingNode -------------------------------------------------------------------------
@@ -94,7 +94,7 @@ define( [ "module", "vwf/model" ], function( module, model ) {
 
         // -- callingMethod ------------------------------------------------------------------------
 
-        callingMethod: function( nodeID, methodName, methodParameters, methodValue ) {
+        callingMethod: function( nodeID, methodName, methodParameters ) {
         },
 
         // -- creatingEvent ------------------------------------------------------------------------

@@ -11,7 +11,7 @@
 # or implied. See the License for the specific language governing permissions and limitations under
 # the License.
 
-require "helper"
+require_relative "../helper"
   
 class VWF::PatternTest < MiniTest::Unit::TestCase
   include Rack::Test::Methods
@@ -140,7 +140,7 @@ class VWF::PatternTest < MiniTest::Unit::TestCase
     assert_pattern_match [ "/directory", "index.vwf", "0000000000000000", "file.ext" ], "/directory/0000000000000000/file.ext"
     assert_pattern_match [ "/directory", "component.vwf", "0000000000000000", "file.ext" ], "/directory/component.vwf/0000000000000000/file.ext"
   end
-    
+
   private
    
   def assert_pattern_match captures, path

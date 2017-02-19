@@ -12,15 +12,12 @@
 # the License.
 
 require "erb"
+require "yaml"
 
 class VWF::Application::Admin < Sinatra::Base
 
   configure do
     set :root, VWF.settings.root
-  end
-
-  get "/" do
-    erb :"admin.html"
   end
 
   # get "/state" do  # TODO: restore when next handler is switched back to post
@@ -91,22 +88,28 @@ class VWF::Application::Admin < Sinatra::Base
   # details (none currently).
 
   get "/instances" do
+    
+    jsonInstances = Hash[ *
+        VWF::Application::Reflector.instances( env ).map do |resource, instance|
+          [ resource, Hash[ :clients => Hash[ * instance[:clients].map { |client| [ client.id, nil ] } .flatten( 1 ) ] ] ]
+        end .flatten( 1 )
+      ] .to_json
 
-    Hash[ *
-      VWF::Application::Reflector.instances( env ).map do |resource, instance|
-        [ resource, Hash[ :clients => Hash[ * instance[:clients].map { |client| [ client.id, nil ] } .flatten( 1 ) ] ] ]
-      end .flatten( 1 )
-    ] .to_json
+    if params["callback"]
+      params["callback"].to_s + "( " + jsonInstances + " )"
+    else
+      jsonInstances
+    end
 
   end
 
   get "/models" do
     directory = Rack::Directory.new('public')
-    directory._call({'SCRIPT_NAME'=>request.scheme+'://'+request.host_with_port, 'PATH_INFO'=>'models'})
-    dirContents = directory.list_directory[2].files 
+    directory._call({'SCRIPT_NAME'=>request.scheme+'://'+request.host_with_port, 'PATH_INFO'=>'demos/models'})
+    dirContents = directory.list_directory[2].files
     dirContents.map do |dirContent|
       if dirContent[3] != "" && dirContent[3] != "directory"
-        Hash[ "url"=>dirContent[0], "basename"=>dirContent[1], "size"=>dirContent[2], "type"=>dirContent[3], "mtime"=>dirContent[4] ]
+        Hash[ "url"=>dirContent[0].gsub(/http%3A\//, 'http%3A//'), "basename"=>dirContent[1], "size"=>dirContent[2], "type"=>dirContent[3], "mtime"=>dirContent[4] ]
       end
     end .compact .to_json
   end
@@ -117,9 +120,40 @@ class VWF::Application::Admin < Sinatra::Base
     dirContents = directory.list_directory[2].files 
     dirContents.map do |dirContent|
       if dirContent[3] == "application/json"
-        Hash[ "url"=>dirContent[0], "basename"=>dirContent[1], "size"=>dirContent[2], "type"=>dirContent[3], "mtime"=>dirContent[4] ]
+        Hash[ "url"=>dirContent[0].gsub(/http%3A\//, 'http%3A//'), "basename"=>dirContent[1], "size"=>dirContent[2], "type"=>dirContent[3], "mtime"=>dirContent[4] ]
       end
     end .compact .to_json
+  end
+
+  get "/config" do
+    if(File.exists?("public#{ env["vwf.root"] }/#{ env["vwf.application"] }.config.yaml"))
+      config = File.read("public#{ env["vwf.root"] }/#{ env["vwf.application"] }.config.yaml")
+      config = YAML.load(config)
+      config.to_json
+    elsif(File.exists?("public#{ env["vwf.root"] }/#{ env["vwf.application"] }.config.json"))
+      config = File.read("public#{ env["vwf.root"] }/#{ env["vwf.application"] }.config.json")
+      config = JSON.load(config)
+      config.to_json
+    end
+  end
+
+  # The application's "chrome" HTML overlay.
+  # 
+  # For an application `application.vwf`, the chrome is in the file `application.vwf.html`. An empty
+  # document is sent if the overlay file doesn't exist.
+
+  get "/chrome" do
+
+    chrome_file = File.join VWF.settings.public_folder, env["vwf.root"],
+      "#{ env["vwf.application"] }.html"
+
+    if File.exists? chrome_file
+      send_file chrome_file
+    else
+      content_type :html
+      ""
+    end
+
   end
 
 end

@@ -44,16 +44,37 @@ define( [ "module", "vwf/view" ], function( module, view ) {
 
             case "createNode":
 
-                return function( nodeComponent, when, callback /* ( nodeID ) */ ) {
+                return function( nodeComponent, nodeAnnotation, baseURI, when, callback /* nodeID */ ) {
+
+                    // Interpret `createNode( nodeComponent, when, callback )` as
+                    // `createNode( nodeComponent, undefined, undefined, when, callback )` and
+                    // `createNode( nodeComponent, nodeAnnotation, when, callback )` as
+                    // `createNode( nodeComponent, nodeAnnotation, undefined, when, callback )`.
+                    // `nodeAnnotation` was added in 0.6.12, and `baseURI` was added in 0.6.25.
+
+                    if ( typeof baseURI == "function" || baseURI instanceof Function ) {
+                        callback = baseURI;
+                        when = nodeAnnotation;
+                        baseURI = undefined;
+                        nodeAnnotation = undefined;
+                    } else if ( typeof when == "function" || when instanceof Function ) {
+                        callback = when;
+                        when = baseURI;
+                        baseURI = undefined;
+                    }
+
+                    // Make the call.
+
                     this.kernel.send( undefined, kernelFunctionName, undefined,
-                        [ nodeComponent ], when || 0, callback /* ( result ) */ );
+                        [ nodeComponent, nodeAnnotation ], when || 0, callback /* result */ );
+
                 };
 
             case "deleteNode":
 
                 return function( nodeID, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        undefined, when || 0, callback /* ( result ) */ );
+                        undefined, when || 0, callback /* result */ );
                 };
 
             // TODO: setNode
@@ -61,44 +82,51 @@ define( [ "module", "vwf/view" ], function( module, view ) {
 
             case "createChild":
 
-                return function( nodeID, childName, childComponent, childURI, when, callback /* ( childID ) */ ) {
+                return function( nodeID, childName, childComponent, childURI, when, callback /* childID */ ) {
                     this.kernel.send( nodeID, kernelFunctionName, childName,
-                        [ childComponent, childURI ], when || 0, callback /* ( result ) */ );
+                        [ childComponent, childURI ], when || 0, callback /* result */ );
+                };
+
+            case "deleteChild":
+
+                return function( nodeID, childName, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, childName,
+                        undefined, when || 0, callback /* result */ );
                 };
 
             case "addChild":
             
                 return function( nodeID, childID, childName, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        [ childID, childName ], when || 0, callback /* ( result ) */ );  // TODO: swap childID & childName?
+                        [ childID, childName ], when || 0, callback /* result */ );  // TODO: swap childID & childName?
                 };
 
             case "removeChild":
 
                 return function( nodeID, childID, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        [ childID ], when || 0, callback /* ( result ) */ );  // TODO: swap childID & childName?
+                        [ childID ], when || 0, callback /* result */ );  // TODO: swap childID & childName?
                 };
 
             case "setProperties":
 
                 return function( nodeID, properties, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        [ properties ], when || 0, callback /* ( result ) */ );
+                        [ properties ], when || 0, callback /* result */ );
                 };
 
             case "getProperties":
 
                 return function( nodeID, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        undefined, when || 0, callback /* ( result ) */ );
+                        undefined, when || 0, callback /* result */ );
                 };
 
             case "createProperty":
 
                 return function( nodeID, propertyName, propertyValue, propertyGet, propertySet, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, propertyName,
-                        [ propertyValue, propertyGet, propertySet ], when || 0, callback /* ( result ) */ );  // TODO: { value: propertyValue, get: propertyGet, set: propertySet } ? -- vwf.receive() needs to parse
+                        [ propertyValue, propertyGet, propertySet ], when || 0, callback /* result */ );  // TODO: { value: propertyValue, get: propertyGet, set: propertySet } ? -- vwf.receive() needs to parse
                 };
 
             // TODO: deleteProperty
@@ -107,74 +135,109 @@ define( [ "module", "vwf/view" ], function( module, view ) {
 
                 return function( nodeID, propertyName, propertyValue, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, propertyName,
-                        [ propertyValue ], when || 0, callback /* ( result ) */ );
+                        [ propertyValue ], when || 0, callback /* result */ );
                 };
 
             case "getProperty":
 
                 return function( nodeID, propertyName, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, propertyName,
-                        undefined, when || 0, callback /* ( result ) */ );
+                        undefined, when || 0, callback /* result */ );
                 };
     
             case "createMethod":
 
                 return function( nodeID, methodName, methodParameters, methodBody, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, methodName,
-                        [ methodParameters, methodBody ], when || 0, callback /* ( result ) */ );  // TODO: { parameters: methodParameters, body: methodBody } ? -- vwf.receive() needs to parse
+                        [ methodParameters, methodBody ], when || 0, callback /* result */ );  // TODO: { parameters: methodParameters, body: methodBody } ? -- vwf.receive() needs to parse
                 };
 
             // TODO: deleteMethod
+
+            case "setMethod":
+
+                return function( nodeID, methodName, methodHandler, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, methodName,
+                        [ methodHandler ], when || 0, callback /* result */ );
+                };
+
+            case "getMethod":
+
+                return function( nodeID, methodName, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, methodName,
+                        undefined, when || 0, callback /* result */ );
+                };
 
             case "callMethod":
 
                 return function( nodeID, methodName, methodParameters, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, methodName,
-                        [ methodParameters ], when || 0, callback /* ( result ) */ );
+                        [ methodParameters ], when || 0, callback /* result */ );
                 };
     
             case "createEvent":
 
                 return function( nodeID, eventName, eventParameters, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, eventName,
-                        [ eventParameters ], when || 0, callback /* ( result ) */ );
+                        [ eventParameters ], when || 0, callback /* result */ );
                 };
 
             // TODO: deleteEvent
+
+            case "addEventListener":
+
+                return function( nodeID, eventName, eventHandler, eventContextID, eventPhases, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, eventName,
+                        [ eventHandler, eventContextID, eventPhases ], when || 0, callback /* result */ );
+                };
+
+            case "removeEventListener":
+
+                return function( nodeID, eventName, eventListenerID, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, eventName,
+                        [ eventListenerID ], when || 0, callback /* result */ );
+                };
+
+            case "flushEventListeners":
+
+                return function( nodeID, eventName, eventContextID, when, callback ) {
+                    this.kernel.send( nodeID, kernelFunctionName, eventName,
+                        [ eventContextID ], when || 0, callback /* result */ );
+                };
 
             case "fireEvent":
 
                 return function( nodeID, eventName, eventParameters, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, eventName,
-                        [ eventParameters ], when || 0, callback /* ( result ) */ );
+                        [ eventParameters ], when || 0, callback /* result */ );
                 };
     
             case "dispatchEvent":
 
                 return function( nodeID, eventName, eventParameters, eventNodeParameters, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, eventName,
-                        [ eventParameters, eventNodeParameters ], when || 0, callback /* ( result ) */ );
+                        [ eventParameters, eventNodeParameters ], when || 0, callback /* result */ );
                 };
     
             case "execute":
 
                 return function( nodeID, scriptText, scriptType, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        [ scriptText, scriptType ], when || 0, callback /* ( result ) */ );  // TODO: { text: scriptText, type: scriptType } ? -- vwf.receive() needs to parse
+                        [ scriptText, scriptType ], when || 0, callback /* result */ );  // TODO: { text: scriptText, type: scriptType } ? -- vwf.receive() needs to parse
                 };
 
             case "random":
 
                 return function( nodeID, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        undefined, when || 0, callback /* ( result ) */ );
+                        undefined, when || 0, callback /* result */ );
                 };
 
             case "seed":
 
                 return function( nodeID, seed, when, callback ) {
                     this.kernel.send( nodeID, kernelFunctionName, undefined,
-                        [ seed ], when || 0, callback /* ( result ) */ );
+                        [ seed ], when || 0, callback /* result */ );
                 };
 
             // -- Read-only functions --------------------------------------------------------------
@@ -183,16 +246,9 @@ define( [ "module", "vwf/view" ], function( module, view ) {
             case "client":
             case "moniker":
 
-                return function() {
-                    return this.kernel[kernelFunctionName]();
-                };
+            case "application":
 
             case "intrinsics":
-
-                return function( nodeID, result ) {
-                    return this.kernel[kernelFunctionName]( nodeID, result );
-                }            
-
             case "uri":
             case "name":
 
@@ -205,20 +261,12 @@ define( [ "module", "vwf/view" ], function( module, view ) {
             case "children":
             case "descendants":
 
-                return function( nodeID ) {
-                    return this.kernel[kernelFunctionName]( nodeID );
-                };
-
             case "find":
-
-                return function( nodeID, matchPattern, callback /* ( matchID ) */ ) {
-                    return this.kernel[kernelFunctionName]( nodeID, matchPattern, callback );
-                };
-
             case "test":
+            case "findClients":
 
-                return function( nodeID, matchPattern, testID ) {
-                    return this.kernel[kernelFunctionName]( nodeID, matchPattern, testID );
+                return function() {
+                    return this.kernel[kernelFunctionName].apply( this.kernel, arguments );
                 };
 
         }

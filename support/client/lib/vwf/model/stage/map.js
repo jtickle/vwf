@@ -49,8 +49,8 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- createNode ---------------------------------------------------------------------------
 
-        createNode: function( nodeComponent, callback /* ( nodeID ) */ ) {
-            return this.kernel.createNode( nodeComponent, callback );  // TODO: remap callback parameter
+        createNode: function( nodeComponent, nodeAnnotation, baseURI, callback /* ( nodeID ) */ ) {
+            return this.kernel.createNode( nodeComponent, nodeAnnotation, baseURI, callback );   // TODO remap callback parameter (nodeAnnotation and baseURI are optional and callback may be second or third argument)
         },
 
         // -- deleteNode ---------------------------------------------------------------------------
@@ -68,6 +68,13 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
         createChild: function( node, childName, childComponent, childURI, callback /* ( childID ) */ ) {
             return this.kernel.createChild( this.model_to_kernel[this.object_id(node)] || node,
                 childName, childComponent, childURI, callback );  // TODO: remap callback parameter
+        },
+
+        // -- deleteChild --------------------------------------------------------------------------
+
+        deleteChild: function( node, childName ) {
+            return this.kernel.deleteChild( this.model_to_kernel[this.object_id(node)] || node,
+                childName );
         },
 
         // -- addChild -----------------------------------------------------------------------------
@@ -194,8 +201,8 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- uri ----------------------------------------------------------------------------------
 
-        uri: function( node ) {
-            return this.kernel.uri( this.model_to_kernel[this.object_id(node)] || node );
+        uri: function( node, searchAncestors, initializedOnly ) {
+            return this.kernel.uri( this.model_to_kernel[this.object_id(node)] || node, searchAncestors, initializedOnly );
         },
 
         // -- name ---------------------------------------------------------------------------------
@@ -212,8 +219,8 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- prototypes ---------------------------------------------------------------------------
 
-        prototypes: function( node ) {
-            return this.kernel.prototypes( this.model_to_kernel[this.object_id(node)] || node ); // TODO remap return value
+        prototypes: function( node, includeBehaviors ) {
+            return this.kernel.prototypes( this.model_to_kernel[this.object_id(node)] || node, includeBehaviors ); // TODO remap return value
         },
 
         // -- behaviors ----------------------------------------------------------------------------
@@ -224,14 +231,14 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- ancestors ----------------------------------------------------------------------------
 
-        ancestors: function( node ) {
-            return this.kernel.ancestors( this.model_to_kernel[this.object_id(node)] || node ); // TODO remap return value
+        ancestors: function( node, initializedOnly ) {
+            return this.kernel.ancestors( this.model_to_kernel[this.object_id(node)] || node, initializedOnly ); // TODO remap return value
         },
 
         // -- parent -------------------------------------------------------------------------------
 
-        parent: function( node ) {
-            return this.kernel.parent( this.model_to_kernel[this.object_id(node)] || node ); // TODO remap return value
+        parent: function( node, initializedOnly ) {
+            return this.kernel.parent( this.model_to_kernel[this.object_id(node)] || node, initializedOnly ); // TODO remap return value
         },
 
         // -- children -----------------------------------------------------------------------------
@@ -248,16 +255,16 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- find ---------------------------------------------------------------------------------
 
-        find: function( node, matchPattern, callback /* ( matchID ) */ ) { // TODO remap return value and callback parameter
+        find: function( node, matchPattern, initializedOnly, callback /* ( matchID ) */ ) { // TODO remap return value and callback parameter (initializedOnly is optional and callback may be third argument)
             return this.kernel.find( this.model_to_kernel[this.object_id(node)] || node,
-                matchPattern, callback );
+                matchPattern, initializedOnly, callback );
         },
 
         // -- test ---------------------------------------------------------------------------------
 
-        test: function( node, matchPattern, test ) {
+        test: function( node, matchPattern, test, initializedOnly ) {
             return this.kernel.test( this.model_to_kernel[this.object_id(node)] || node,
-                matchPattern, this.model_to_kernel[this.object_id(test)] || test );
+                matchPattern, this.model_to_kernel[this.object_id(test)] || test, initializedOnly );
         },
 
         // == Model API ============================================================================
@@ -265,14 +272,14 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
         // -- creatingNode -------------------------------------------------------------------------
 
         creatingNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
-            childSource, childType, childURI, childName, callback /* ( ready ) */ ) {
+                childSource, childType, childIndex, childName, callback /* ( ready ) */ ) {
 
             var child = this.model.creatingNode && this.model.creatingNode(
                 this.kernel_to_model[nodeID] || nodeID,
                 childID,
                 this.kernel_to_model[childExtendsID] || childExtendsID,
                 childImplementsIDs,  // TODO: remap childImplementsIDs array values
-                childSource, childType, childURI, childName, callback );
+                childSource, childType, childIndex, childName, callback );
 
             if ( child !== undefined ) {
                 this.kernel_to_model[childID] = child;
@@ -284,9 +291,15 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // -- initializingNode ---------------------------------------------------------------------
 
-        initializingNode: function( nodeID, childID ) {
+        initializingNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
+                childSource, childType, childIndex, childName ) {
+
             return this.model.initializingNode && this.model.initializingNode(
-                this.kernel_to_model[nodeID] || nodeID, this.kernel_to_model[childID] || childID );
+                this.kernel_to_model[nodeID] || nodeID,
+                this.kernel_to_model[childID] || childID,
+                this.kernel_to_model[childExtendsID] || childExtendsID,
+                childImplementsIDs,  // TODO: remap childImplementsIDs array values
+                childSource, childType, childIndex, childName );
         },
 
         // -- deletingNode -------------------------------------------------------------------------
@@ -348,11 +361,25 @@ define( [ "module", "vwf/model/stage" ], function( module, stage ) {
 
         // TODO: deletingMethod
 
+        // -- settingMethod ------------------------------------------------------------------------
+
+        settingMethod: function( nodeID, methodName, methodHandler ) {
+            return this.model.settingMethod && this.model.settingMethod( this.kernel_to_model[nodeID] || nodeID,
+                methodName, methodHandler );
+        },
+
+        // -- gettingMethod ------------------------------------------------------------------------
+
+        gettingMethod: function( nodeID, methodName ) {
+            return this.model.gettingMethod && this.model.gettingMethod( this.kernel_to_model[nodeID] || nodeID,
+                methodName );
+        },
+
         // -- callingMethod ------------------------------------------------------------------------
 
-        callingMethod: function( nodeID, methodName, methodParameters, methodValue ) {
+        callingMethod: function( nodeID, methodName, methodParameters ) {
             return this.model.callingMethod && this.model.callingMethod( this.kernel_to_model[nodeID] || nodeID,
-                methodName, methodParameters, methodValue );
+                methodName, methodParameters );
         },
 
         // -- creatingEvent ------------------------------------------------------------------------

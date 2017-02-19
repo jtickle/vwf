@@ -11,7 +11,7 @@
 # or implied. See the License for the specific language governing permissions and limitations under
 # the License.
 
-require "helper"
+require_relative "./helper"
 
 class VWFTest < MiniTest::Unit::TestCase
   include Rack::Test::Methods
@@ -132,7 +132,7 @@ class VWFTest < MiniTest::Unit::TestCase
   def test_application_session_client_default_index
     get "/test/component.vwf/0000000000000000/"
     assert last_response.ok?
-    assert last_response.body.include?( "vwf.initialize" )
+    assert last_response.body.include?( "vwf.loadConfiguration" )
   end
 
   # Serves a client file from an application session.
@@ -140,25 +140,16 @@ class VWFTest < MiniTest::Unit::TestCase
   def test_application_session_client_explicit_index
     get "/test/component.vwf/0000000000000000/index.html"
     assert last_response.ok?
-    assert last_response.body.include?( "vwf.initialize" )
+    assert last_response.body.include?( "vwf.loadConfiguration" )
   end
 
-  # Serves the socket.io client from an application session.
+  # Serves the socket.io client version 0.6.3 from an application session.
 
   def test_application_session_socketio_client
     get "/test/component.vwf/0000000000000000/socket.io.js"
     assert last_response.ok?
+    assert last_response.body.include?( "Socket.IO 0.6.3" )
   end
-
-
-
-
-
-
-
-
-
-
 
   # / => /index.html for application "index"
   # /index.html => /index.html for application "index"
@@ -175,7 +166,4 @@ class VWFTest < MiniTest::Unit::TestCase
   # /directory/application => /index.html for application "application"
   # /directory/application/index.html => /index.html for application "application"
   # /directory/application/index.css => /index.css for application "application"
-
-
-
 end

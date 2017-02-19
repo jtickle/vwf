@@ -30,7 +30,7 @@ module Rack
 
       def onconnect
 
-        logger.info "Rack::SocketIO::Application#onconnect #{ object_id }"
+        logger.info "Rack::SocketIO::Application#onconnect #{id}"
 
         @@clients[resource] ||= []
         @@clients[resource] << self
@@ -41,13 +41,13 @@ module Rack
 
       def onmessage message
 
-        logger.debug "Rack::SocketIO::Application#onmessage #{ object_id } #{ message_for_log message }"
+        logger.debug "Rack::SocketIO::Application#onmessage #{id} #{ message_for_log message }"
 
       end
 
       def ondisconnect
 
-        logger.info "Rack::SocketIO::Application#ondisconnect #{ object_id }"
+        logger.info "Rack::SocketIO::Application#ondisconnect #{id}"
 
         @@clients[resource].delete self
         
@@ -60,7 +60,7 @@ module Rack
 
       def send message, log = true
 
-        log and logger.debug "Rack::SocketIO::Application#send #{ object_id } #{ message_for_log message }"
+        log and logger.debug "Rack::SocketIO::Application#send #{id} #{ message_for_log message }"
 
         # unless connected
         #   queue message  # TODO
@@ -76,7 +76,7 @@ module Rack
 
       def broadcast message, log = true
 
-        log and logger.debug "Rack::SocketIO::Application#broadcast #{ object_id } #{ message_for_log message }"
+        log and logger.debug "Rack::SocketIO::Application#broadcast #{id} #{ message_for_log message }"
 
         clients.each do |client|
           client.send message, false unless client.closing
@@ -92,7 +92,7 @@ module Rack
 
           @heartbeat_timeout = EventMachine::Timer.new 8 do  # TODO: options.timeout
 
-            # logger.debug "Rack::SocketIO::Application#schedule_heartbeat #{ object_id } timeout #{ @heartbeats }"
+            # logger.debug "Rack::SocketIO::Application#schedule_heartbeat #{id} timeout #{ @heartbeats }"
 
             @heartbeat_timeout = nil
             close_websocket
@@ -127,7 +127,7 @@ module Rack
 
       def on_heartbeat message
 
-        # logger.debug "Rack::SocketIO::Application#on_heartbeat #{ object_id } #{ message_for_log message }"
+        # logger.debug "Rack::SocketIO::Application#on_heartbeat #{id} #{ message_for_log message }"
 
         if message.to_i == @heartbeats
           cancel_heartbeat
@@ -138,7 +138,7 @@ module Rack
 
       def send_heartbeat message
 
-        # logger.debug "Rack::SocketIO::Application#send_heartbeat #{ object_id } #{ message_for_log message }"
+        # logger.debug "Rack::SocketIO::Application#send_heartbeat #{id} #{ message_for_log message }"
 
         send_serialization "~h~" + message
 
@@ -173,16 +173,34 @@ module Rack
 
         # logger.debug "Rack::WebSocket::Application#send_data #{data}"
 
-        send_data data
+        begin
+          send_data data
+        rescue EventMachine::WebSocket::WebSocketError => exception
+          if exception.message.match /connection is closing$/
+            logger.info "Rack::SocketIO::Application#send_serialization #{id} #{ message_for_log data } ignoring exception from sending to a closing connection"
+            logger.info exception
+          else
+            raise
+          end
+        end
 
       end
 
       def on_open env
 
-        # logger.debug "Rack::SocketIO::Application#on_open #{ object_id }"
+        # logger.debug "Rack::SocketIO::Application#on_open #{id}"
 
         @heartbeats = 0
-        send_serialization id
+
+        # if the incoming url has a session id, set the local id to it
+        # else, generate a new one and send it
+        
+        if matchdata = env["PATH_INFO"].match( %r{^/(socket|websocket)/(?<id>.+)(/|$)} )  # TODO: configuration parameter for paths accepted; "websocket/session" is for socket.io
+          self.id = matchdata[:id]
+        else
+          send_serialization id
+        end
+
         schedule_heartbeat
         onconnect
 
@@ -206,7 +224,7 @@ module Rack
   
       def on_close env
 
-        # logger.debug "Rack::SocketIO::Application#on_close #{ object_id }"
+        # logger.debug "Rack::SocketIO::Application#on_close #{id}"
 
         cancel_heartbeat
         ondisconnect
@@ -250,6 +268,8 @@ module Rack
       def id
         @id ||= "%08x" % rand( 1 << 32 ) + "%08x" % rand( 1 << 32 ) # rand has 52 bits of randomness; call twice to get 64 bits
       end
+
+      attr_writer :id
 
     private
 

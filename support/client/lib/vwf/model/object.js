@@ -19,7 +19,8 @@
 /// @requires vwf/model
 /// @requires vwf/configuration
 
-define( [ "module", "vwf/model", "vwf/configuration" ], function( module, model, configuration ) {
+define( [ "module", "vwf/model", "vwf/utility", "vwf/configuration" ],
+        function( module, model, utility, configuration ) {
 
     return model.load( module, {
 
@@ -37,63 +38,106 @@ define( [ "module", "vwf/model", "vwf/configuration" ], function( module, model,
         // -- creatingNode -------------------------------------------------------------------------
 
         creatingNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
-                childSource, childType, childURI, childName, callback /* ( ready ) */ ) {
+                childSource, childType, childIndex, childName, callback /* ( ready ) */ ) {
+
+            // The kernel calls vwf/model/object's `creatingNode` multiple times: once at the start
+            // of `createChild` so that we can claim our spot in the parent's children array before
+            // doing any async operations, a second time after loading the prototype and behaviors,
+            // then a third time in the normal order as the last driver.
 
             var parent = nodeID != 0 && this.objects[nodeID];
 
-            var child = this.objects[childID] = {
+            var child = this.objects[childID];
 
-                id: childID,
+            if ( ! child ) {
 
-                prototype: childExtendsID &&
-                    this.objects[childExtendsID],
+                // First time: initialize the node.
 
-                behaviors: ( childImplementsIDs || [] ).map( function( childImplementsID ) {
+                child = this.objects[childID] = {
+
+                    id: childID,
+
+                    prototype: undefined,
+                    behaviors: undefined,
+
+                    source: childSource,
+                    type: childType,
+
+                    uri: parent ? undefined : childIndex,
+
+                    name: childName,
+
+                    properties: {},
+                    methods: {},
+                    events: {},
+
+                    parent: undefined,
+                    children: [],
+
+                    sequence: 0,                      // counter for child ID assignments
+
+                    prng: parent ?                    // pseudorandom number generator, seeded by ...
+                        new Alea( JSON.stringify( parent.prng.state ), childID ) :  // ... the parent's prng and the child ID, or
+                        new Alea( configuration.active["random-seed"], childID ),   // ... the global seed and the child ID
+
+                    // TODO: The 'patches' object is in the process of moving to the kernel
+                    //       Those objects that are double-commented out have already moved
+                    //       Those that are single-commented out have yet to move.
+
+                    // Change list for patchable objects. This comment shows the structure of the 
+                    // object, but it is created later dynamically as needed
+
+                    // patches: {
+                    //     // root: true,             // node is the root of the component -- moved to kernel's node registry
+                    //     // descendant: true,       // node is a descendant still within the component -- moved to kernel's node registry
+                    //     internals: true,           // random, seed, or sequence has changed
+                    //     // properties: true,       // placeholder for a property change list -- moved to kernel's node registry
+                    //     // methods: [],            // array of method names for methods that changed -- moved to kernel's node registry
+                    // },
+
+                    // END TODO
+
+                    initialized: false,
+
+                };
+
+                // Connect to the parent.
+
+                if ( parent ) {
+                    child.parent = parent;
+                    parent.children[childIndex] = child;
+                }
+
+                // Create the `patches` field for tracking changes if the node is patchable (if it's
+                // the root or a descendant in a component).
+
+                if ( child.uri ) {
+                    child.patches = { /* root: true */ };
+                } else  if ( parent && ! parent.initialized && parent.patches ) {
+                    child.patches = { /* descendant: true */  };
+                }
+
+            } else if ( ! child.prototype ) {
+
+                // Second time: fill in the prototype and behaviors.
+
+                child.prototype = childExtendsID && this.objects[childExtendsID];
+
+                child.behaviors = ( childImplementsIDs || [] ).map( function( childImplementsID ) {
                     return this.objects[childImplementsID];
-                }, this ),
+                }, this );
 
-                source: childSource,
-                type: childType,
+            } else {
 
-                uri: childURI,
-
-                name: childName,
-
-                properties: {},
-
-                parent: undefined,
-                children: [],
-
-                sequence: 0,                      // counter for child ID assignments
-
-                prng: parent ?                    // pseudorandom number generator, seeded by ...
-                    new Alea( JSON.stringify( parent.prng.state ), childID ) :  // ... the parent's prng and the child ID, or
-                    new Alea( configuration.active["random-seed"], childID ),   // ... the global seed and the child ID
-
-                // Change list for patchable objects. This field is omitted until needed.
-
-                // patches: {
-                //     root: true,                // node is the root of the component
-                //     descendant: true,          // node is a descendant still within the component
-                //     internals: true,           // random, seed, or sequence has changed
-                //     properties: true,          // placeholder for a property change list
-                // },
-
-                initialized: false,
-
-            };
-
-            if ( child.uri ) {
-                child.patches = { root: true };
-            } else  if ( parent && ! parent.initialized && parent.patches ) {
-                child.patches = { descendant: true };
+                // Third time: ignore since nothing is new.
             }
 
         },
 
         // -- initializingNode ---------------------------------------------------------------------
 
-        initializingNode: function( nodeID, childID ) {
+        initializingNode: function( nodeID, childID, childExtendsID, childImplementsIDs,
+                childSource, childType, childIndex, childName ) {
             this.objects[childID].initialized = true;
         },
 
@@ -122,7 +166,7 @@ define( [ "module", "vwf/model", "vwf/configuration" ], function( module, model,
 
         // -- addingChild --------------------------------------------------------------------------
 
-        addingChild: function( nodeID, childID, childName ) {  // TODO: not for global anchor node 0
+        addingChild: function( nodeID, childID, childName ) {  // ... doesn't validate arguments or check for moving to/from 0  // TODO: not for global anchor node 0
 
             var object = this.objects[nodeID];
             var child = this.objects[childID];
@@ -134,8 +178,15 @@ define( [ "module", "vwf/model", "vwf/configuration" ], function( module, model,
 
         // -- removingChild ------------------------------------------------------------------------
 
-        // removingChild: function( nodeID, childID ) {
-        // },
+        removingChild: function( nodeID, childID ) {  // ... doesn't validate arguments or check for moving to/from 0
+
+            var object = this.objects[nodeID];
+            var child = this.objects[childID];
+
+            child.parent = undefined;
+            object.children.splice( object.children.indexOf( child ), 1 );
+
+        },
 
         // TODO: creatingProperties, initializingProperties
 
@@ -158,8 +209,6 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
                 node_properties[propertyName] = properties[propertyName];
 
             }
-
-            object.initialized && object.patches && ( object.patches.properties = true ); // placeholder for a property change list
 
             return node_properties;
         },
@@ -188,7 +237,6 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
 
         settingProperty: function( nodeID, propertyName, propertyValue ) {
             var object = this.objects[nodeID];
-            object.initialized && object.patches && ( object.patches.properties = true ); // placeholder for a property change list
             return object.properties[propertyName] = propertyValue;
         },
 
@@ -196,6 +244,78 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
 
         gettingProperty: function( nodeID, propertyName, propertyValue ) {
             return this.objects[nodeID].properties[propertyName];
+        },
+
+        // -- creatingMethod -----------------------------------------------------------------------
+
+        creatingMethod: function( nodeID, methodName, methodParameters, methodBody ) {
+            return this.settingMethod( nodeID, methodName,
+                { parameters: methodParameters, body: methodBody } );
+        },
+
+        // -- settingMethod ------------------------------------------------------------------------
+
+        settingMethod: function( nodeID, methodName, methodHandler ) {
+            return this.objects[nodeID].methods[methodName] = methodHandler;
+        },
+
+        // -- gettingMethod ------------------------------------------------------------------------
+
+        gettingMethod: function( nodeID, methodName ) {
+            return this.objects[nodeID].methods[methodName];
+        },
+
+        // -- addingEventListener ------------------------------------------------------------------
+
+        addingEventListener: function( nodeID, eventName, eventListenerID, eventHandler, eventContextID, eventPhases ) {
+
+            if ( ! this.objects[ nodeID ].events[ eventName ] ) {
+                this.objects[ nodeID ].events[ eventName ] = {};
+            }
+
+            return this.settingEventListener( nodeID, eventName, eventListenerID,
+                utility.merge( eventHandler, { context: eventContextID, phases: eventPhases } ) ) ?
+                    true : undefined;
+        },
+
+        // -- removingEventListener ----------------------------------------------------------------
+
+        removingEventListener: function( nodeID, eventName, eventListenerID ) {
+
+            var listeners = this.objects[ nodeID ].events[ eventName ];
+
+            if ( listeners && listeners[ eventListenerID ] ) {
+                delete listeners[ eventListenerID ];
+                return true;
+            }
+
+            return undefined;
+        },
+
+        // -- settingEventListener -----------------------------------------------------------------
+
+        settingEventListener: function( nodeID, eventName, eventListenerID, eventListener ) {
+            return this.objects[ nodeID ].events[ eventName ][ eventListenerID ] = eventListener;
+        },
+
+        // -- gettingEventListener -----------------------------------------------------------------
+
+        gettingEventListener: function( nodeID, eventName, eventListenerID ) {
+            return this.objects[ nodeID ].events[ eventName ][ eventListenerID ];
+        },
+
+        // -- flushingEventListeners ---------------------------------------------------------------
+
+        flushingEventListeners: function( nodeID, eventName, eventContextID ) {
+
+            var listeners = this.objects[ nodeID ].events[ eventName ];
+
+            Object.keys( listeners ).forEach( function( eventListenerID ) {
+                if ( listeners[ eventListenerID ].context === eventContextID ) {
+                    delete listeners[ eventListenerID ];
+                }
+            } );
+
         },
 
         // == Special Model API ====================================================================
@@ -238,7 +358,12 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
         // -- uri ----------------------------------------------------------------------------------
 
         uri: function( nodeID ) {
-            return this.objects[nodeID].uri;
+            var node = this.objects[ nodeID ];
+            if ( node ) {
+                return node.uri;
+            } else {
+                this.logger.warnx( "Could not find uri of nonexistent node: '" + nodeID + "'" );
+            }
         },
 
         // -- name ---------------------------------------------------------------------------------
@@ -257,24 +382,51 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
         // -- behaviors ----------------------------------------------------------------------------
 
         behaviors: function( nodeID ) {  // TODO: not for global anchor node 0
-            return this.objects[nodeID].behaviors.map( function( behavior ) {
-                return behavior.id;
-            } );
+            var behaviors = this.objects[nodeID].behaviors;
+            if ( behaviors ) {
+                return behaviors.map( function( behavior ) {
+                    return behavior.id;
+                } );
+            } else {
+                this.logger.warnx( "Node '" + nodeID + "' does not have a valid behaviors array" );
+            }
         },
 
         // -- parent -------------------------------------------------------------------------------
 
-        parent: function( nodeID ) {
-            var object = this.objects[nodeID];
-            return object.parent && object.parent.id || 0;
+        parent: function( nodeID, initializedOnly ) {
+
+            var object = this.objects[ nodeID ];
+
+            if ( object ) {
+                return ( ! initializedOnly || object.initialized ) ?
+                    ( object.parent && object.parent.id || 0 ) : undefined;
+            } else {
+                this.logger.error( "Cannot find node: '" + nodeID + "'" );
+            }
+
         },
 
         // -- children -----------------------------------------------------------------------------
 
-        children: function( nodeID ) {
-            return this.objects[nodeID].children.map( function( child ) {
-                return child.id;
-            } );
+        children: function( nodeID, initializedOnly ) {
+
+            if ( nodeID === undefined ) {
+                this.logger.errorx( "children", "cannot retrieve children of nonexistent node");
+                return;
+            }
+
+            var node = this.objects[ nodeID ];
+
+            if ( node ) {
+                return node.children.map( function( child ) {
+                    return ( ! initializedOnly || child.initialized ) ?
+                        child.id : undefined;
+                } );
+            } else {
+                this.logger.error( "Cannot find node: " + nodeID );
+            }
+
         },
 
         // == Special utilities ====================================================================
@@ -294,9 +446,20 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
 
             var object = this.objects[nodeID];
 
+            if ( !object ) {
+                this.logger.errorx( "internals: object does not exist with id = '" + nodeID + "'" );
+                return;
+            }
+
             if ( internals ) { // set
-                object.sequence = internals.sequence || 0;
-                jQuery.extend( object.prng.state, internals.random || {} );
+                if ( internals.sequence !== undefined ) {
+                    object.sequence = internals.sequence;
+                    object.initialized && object.patches && ( object.patches.internals = true );
+                }
+                if ( internals.random !== undefined ) {
+                    merge( object.prng.state, internals.random );
+                    object.initialized && object.patches && ( object.patches.internals = true );
+                }
             } else { // get
                 internals = {};
                 internals.sequence = object.sequence;
@@ -326,6 +489,27 @@ if ( ! object ) return;  // TODO: patch until full-graph sync is working; driver
             return !! this.objects[nodeID];
         },
 
+        // -- initialized --------------------------------------------------------------------------
+
+        initialized: function( nodeID ) {
+            return this.objects[nodeID].initialized;
+        },
+
     } );
+
+    /// Merge fields from the `source` objects into `target`.
+
+    function merge( target /* [, source1 [, source2 ... ] ] */ ) {
+
+        for ( var index = 1; index < arguments.length; index++ ) {
+            var source = arguments[index];
+
+            Object.keys( source ).forEach( function( key ) {
+                target[key] = source[key];
+            } );
+        }
+
+        return target;
+    }
 
 } );

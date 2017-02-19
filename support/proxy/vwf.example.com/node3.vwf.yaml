@@ -18,9 +18,26 @@
 
 ---
 extends: http://vwf.example.com/node.vwf
+implements:
+- http://vwf.example.com/animation.vwf
+- http://vwf.example.com/node3/animation.vwf
 
 properties:
 
+  ## Node casts shadows
+  ## 
+  ## @name node3.vwf#castShadows
+  ## @property
+
+  castShadows:
+  
+  ## Node receives shadows
+  ## 
+  ## @name node3.vwf#receiveShadows
+  ## @property
+
+  receiveShadows:
+  
   ## World transform of 3D node
   ## 
   ## @name node3.vwf#worldTransform
@@ -32,13 +49,15 @@ properties:
       if ( this.parent && goog.vec.Mat4.invert( this.transformFromValue( this.parent.worldTransform ), parentInverse ) ) {
         var transform = goog.vec.Mat4.multMat( parentInverse, this.transformFromValue( value ), goog.vec.Mat4.create() );
         this.transform = transform;
+      } else {
+        this.transform = value;
       }
     get: |
-      if( this.parent && this.parent.worldTransform )
+      if( this.parent && this.parent.worldTransform && this.transform )
       {
         return goog.vec.Mat4.multMat( this.parent.worldTransform, this.transform, goog.vec.Mat4.create() );
       }
-      else return this.transform;
+      else return this.transform; //@ sourceURL=node3.worldTransform.get.vwf
 
   ## Transform of 3D node
   ## 
@@ -51,7 +70,9 @@ properties:
       if ( ! goog.vec.Mat4.equals( this.transform || goog.vec.Mat4.createIdentity(), transform ) ) {
         this.transform = transform;
         this.transformChanged( transform );
-      }
+      }  //@ sourceURL=node3.transform.set.vwf
+    get: |
+      return this.transform || goog.vec.Mat4.createIdentity(); //@ sourceURL=node3.transform.get.vwf
 
   ## Translation of 3D node
   ## node.translation <= [ x, y, z ]
@@ -129,7 +150,7 @@ properties:
       );
       this.scaledTransform( transform, scale, transform );
       goog.vec.Mat4.setColumn( transform, 3, translation );
-      this.transform = transform;
+      this.transform = transform; //@ sourceURL=node3.quaternion.set
     # node.quaternion => [ x, y, z, w ]
     get: |
       return goog.vec.Quaternion.fromRotationMatrix4(
@@ -196,7 +217,7 @@ properties:
       this.logger.info("WARNING: node3 worldBoundingBox cannot be set" )
     get: |
       var worldTransform = this.worldTransform;
-      if(worldTransform) {
+      if ( worldTransform ) {
         var worldBoundingBox;
         for(var i=0;i<this.children.length;i++) {
           var childBoundingBox = this.children[i].worldBoundingBox;
@@ -205,31 +226,33 @@ properties:
               worldBoundingBox = childBoundingBox;
             }
             else {
-              worldBoundingBox.max[0] = Math.max(worldBoundingBox.max[0], childBoundingBox.max[0]);
-              worldBoundingBox.max[1] = Math.max(worldBoundingBox.max[1], childBoundingBox.max[1]);
-              worldBoundingBox.max[2] = Math.max(worldBoundingBox.max[2], childBoundingBox.max[2]);
-              worldBoundingBox.min[0] = Math.min(worldBoundingBox.min[0], childBoundingBox.min[0]);
-              worldBoundingBox.min[1] = Math.min(worldBoundingBox.min[1], childBoundingBox.min[1]);
-              worldBoundingBox.min[2] = Math.min(worldBoundingBox.min[2], childBoundingBox.min[2]);
+              worldBoundingBox.max.x = Math.max(worldBoundingBox.max.x, childBoundingBox.max.x);
+              worldBoundingBox.max.y = Math.max(worldBoundingBox.max.y, childBoundingBox.max.y);
+              worldBoundingBox.max.z = Math.max(worldBoundingBox.max.z, childBoundingBox.max.z);
+              worldBoundingBox.min.x = Math.min(worldBoundingBox.min.x, childBoundingBox.min.x);
+              worldBoundingBox.min.y = Math.min(worldBoundingBox.min.y, childBoundingBox.min.y);
+              worldBoundingBox.min.z = Math.min(worldBoundingBox.min.z, childBoundingBox.min.z);
             }
           }
         }
-        if(!worldBoundingBox) {
+        if( !worldBoundingBox ) {
           worldBoundingBox = this.boundingbox;
-          var coord0=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min[0],worldBoundingBox.min[1],worldBoundingBox.min[2],1], goog.vec.Vec4.create() );
-          var coord1=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max[0],worldBoundingBox.min[1],worldBoundingBox.min[2],1], goog.vec.Vec4.create() );
-          var coord2=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min[0],worldBoundingBox.max[1],worldBoundingBox.min[2],1], goog.vec.Vec4.create() );
-          var coord3=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max[0],worldBoundingBox.max[1],worldBoundingBox.min[2],1], goog.vec.Vec4.create() );
-          var coord4=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min[0],worldBoundingBox.min[1],worldBoundingBox.max[2],1], goog.vec.Vec4.create() );
-          var coord5=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max[0],worldBoundingBox.min[1],worldBoundingBox.max[2],1], goog.vec.Vec4.create() );
-          var coord6=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min[0],worldBoundingBox.max[1],worldBoundingBox.max[2],1], goog.vec.Vec4.create() );
-          var coord7=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max[0],worldBoundingBox.max[1],worldBoundingBox.max[2],1], goog.vec.Vec4.create() );
-          worldBoundingBox.min[0]=Math.min(coord0[0],coord1[0],coord2[0],coord3[0],coord4[0],coord5[0],coord6[0],coord7[0]);
-          worldBoundingBox.max[0]=Math.max(coord0[0],coord1[0],coord2[0],coord3[0],coord4[0],coord5[0],coord6[0],coord7[0]);
-          worldBoundingBox.min[1]=Math.min(coord0[1],coord1[1],coord2[1],coord3[1],coord4[1],coord5[1],coord6[1],coord7[1]);
-          worldBoundingBox.max[1]=Math.max(coord0[1],coord1[1],coord2[1],coord3[1],coord4[1],coord5[1],coord6[1],coord7[1]);
-          worldBoundingBox.min[2]=Math.min(coord0[2],coord1[2],coord2[2],coord3[2],coord4[2],coord5[2],coord6[2],coord7[2]);
-          worldBoundingBox.max[2]=Math.max(coord0[2],coord1[2],coord2[2],coord3[2],coord4[2],coord5[2],coord6[2],coord7[2]);
+          if ( worldBoundingBox ) {
+            var coord0=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min.x,worldBoundingBox.min.y,worldBoundingBox.min.z,1], goog.vec.Vec4.create() );
+            var coord1=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max.x,worldBoundingBox.min.y,worldBoundingBox.min.z,1], goog.vec.Vec4.create() );
+            var coord2=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min.x,worldBoundingBox.max.y,worldBoundingBox.min.z,1], goog.vec.Vec4.create() );
+            var coord3=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max.x,worldBoundingBox.max.y,worldBoundingBox.min.z,1], goog.vec.Vec4.create() );
+            var coord4=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min.x,worldBoundingBox.min.y,worldBoundingBox.max.z,1], goog.vec.Vec4.create() );
+            var coord5=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max.x,worldBoundingBox.min.y,worldBoundingBox.max.z,1], goog.vec.Vec4.create() );
+            var coord6=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.min.x,worldBoundingBox.max.y,worldBoundingBox.max.z,1], goog.vec.Vec4.create() );
+            var coord7=goog.vec.Mat4.multVec4(worldTransform,[worldBoundingBox.max.x,worldBoundingBox.max.y,worldBoundingBox.max.z,1], goog.vec.Vec4.create() );
+            worldBoundingBox.min.x=Math.min(coord0[0],coord1[0],coord2[0],coord3[0],coord4[0],coord5[0],coord6[0],coord7[0]);
+            worldBoundingBox.max.x=Math.max(coord0[0],coord1[0],coord2[0],coord3[0],coord4[0],coord5[0],coord6[0],coord7[0]);
+            worldBoundingBox.min.y=Math.min(coord0[1],coord1[1],coord2[1],coord3[1],coord4[1],coord5[1],coord6[1],coord7[1]);
+            worldBoundingBox.max.y=Math.max(coord0[1],coord1[1],coord2[1],coord3[1],coord4[1],coord5[1],coord6[1],coord7[1]);
+            worldBoundingBox.min.z=Math.min(coord0[2],coord1[2],coord2[2],coord3[2],coord4[2],coord5[2],coord6[2],coord7[2]);
+            worldBoundingBox.max.z=Math.max(coord0[2],coord1[2],coord2[2],coord3[2],coord4[2],coord5[2],coord6[2],coord7[2]);
+          }
         }
         return worldBoundingBox;
       }
@@ -254,7 +277,6 @@ properties:
   vertices: 
     set: |
       this.logger.info( "WARNING: node3 vertices cannot be set" )
-    value: 
 
   ## Vertex indices of 3D node
   ## 
@@ -264,7 +286,6 @@ properties:
   vertexIndices: 
     set: |
       this.logger.info( "WARNING: node3 vertexIndices cannot be set" )
-    value: 
 
   ## Speed value
   ## 
@@ -299,337 +320,13 @@ properties:
   ## @name node3.vwf#visible
   ## @property
 
-  visible: true
-
-methods:
-
-  ## Translate by given translation over duration.
-  ## 
-  ## @name node3.vwf#translateBy
-  ## @function
-  ##
-  ## @param {Array} translation
-  ## @param {Number} duration
-  ##
-  ## @returns undefined
-
-  translateBy:
-    parameters:
-      - translation
-      - duration
-    body: |
-      var startTranslation = this.translation || goog.vec.Vec3.create();
-      var deltaTranslation = this.translationFromValue( translation );
-      var stopTranslation = goog.vec.Vec3.add(
-        startTranslation,
-        deltaTranslation,
-        goog.vec.Vec3.create()
-      );
-      this.translationWorker(
-        startTranslation,
-        stopTranslation,
-        this.time,
-        this.time + ( duration || 0 )
-      ); //@ sourceURL=node3.translateBy.vwf
-
-  ## Translate to given translation over duration.
-  ## 
-  ## @name node3.vwf#translateTo
-  ## @function
-  ##
-  ## @param {Array} translation
-  ## @param {Number} duration
-  ##
-  ## @returns undefined
-
-  translateTo:
-    parameters:
-      - translation
-      - duration
-    body: |
-      var startTranslation = this.translation || goog.vec.Vec3.create();
-      var stopTranslation = this.translationFromValue( translation );
-      this.translationWorker(
-        startTranslation,
-        stopTranslation,
-        this.time,
-        this.time + ( duration || 0 )
-      ); //@ sourceURL=node3.translateTo.vwf
-
-  ## Perform a translation animation.
-  ## 
-  ## @name node3.vwf#translationWorker
-  ## @function
-  ##
-  ## @param {Array} startTranslation
-  ## @param {Array} stopTranslation
-  ## @param {Number} startTime
-  ## @param {Number} stopTime
-  ##
-  ## @returns undefined
-
-  translationWorker:
-    parameters:
-      - startTranslation
-      - stopTranslation
-      - startTime
-      - stopTime
-    body: |
-      this.playing = true;
-      this.translation = goog.vec.Vec3.lerp(
-        startTranslation, stopTranslation,
-        startTime >= stopTime ? 1 : ( Math.max( startTime, Math.min( this.time, stopTime ) ) - startTime ) / ( stopTime - startTime ),
-        goog.vec.Vec3.create()
-      );
-      if ( this.time < stopTime ) {
-        this.in( 0.04 ).translationWorker(
-          startTranslation,
-          stopTranslation,
-          startTime,
-          stopTime
-        ); // TODO: way to do this.in( next-tick )...
-      }  
-      else { 
-        this.playing = false;
-      } //@ sourceURL=node3.translationWorker.vwf
-
-  ## Rotate by given rotation over duration.
-  ## 
-  ## @name node3.vwf#rotateBy
-  ## @function
-  ## 
-  ## @param {Array} rotation
-  ## @param {Number} [duration]
-  ## @param {String} [frame]
-  ## 
-  ## @returns undefined
-
-  rotateBy:
-    parameters:
-      - rotation
-      - duration
-      - frame
-    body: |
-      var rotation = this.rotationFromValue( rotation );
-      var deltaQuaternion = goog.vec.Quaternion.fromAngleAxis(
-        rotation[3] * Math.PI / 180,
-        goog.vec.Vec3.createFromValues( rotation[0], rotation[1], rotation[2] ),
-        goog.vec.Quaternion.create()
-      );
-      this.quaterniateBy( deltaQuaternion, duration, frame ); //@ sourceURL=node3.rotateBy.vwf
-
-  ## Rotate to given rotation over duration.
-  ## 
-  ## @name node3.vwf#rotateTo
-  ## @function
-  ## 
-  ## @param {Array} rotation
-  ## @param {Number} duration
-  ## 
-  ## @returns undefined
-
-  rotateTo:
-    parameters:
-      - rotation
-      - duration
-    body: |
-      var rotation = this.rotationFromValue( rotation );
-      var stopQuaternion = goog.vec.Quaternion.fromAngleAxis(
-        rotation[3] * Math.PI / 180,
-        goog.vec.Vec3.createFromValues( rotation[0], rotation[1], rotation[2] ),
-        goog.vec.Quaternion.create()
-      );
-      this.quaterniateTo( stopQuaternion, duration ); //@ sourceURL=node3.rotateTo.vwf
-
-  ## Rotate by given quaternion over duration.
-  ## 
-  ## @name node3.vwf#quaterniateBy
-  ## @function
-  ## 
-  ## @param {Array} quaternion
-  ## @param {Number} [duration]
-  ## @param {String} [frame]
-  ## 
-  ## @returns undefined
-
-  quaterniateBy:
-    parameters:
-      - quaternion
-      - duration
-      - frame
-    body: |
-      var startQuaternion = this.quaternion || goog.vec.Quaternion.createFromValues( 0, 0, 0, 1 );
-      var deltaQuaternion = this.quaternionFromValue( quaternion );
-      if ( ! frame || frame == "rotated" ) {
-        var stopQuaternion = goog.vec.Quaternion.concat(
-          deltaQuaternion,
-          startQuaternion,
-          goog.vec.Quaternion.create()
-        );
-      } else if ( frame == "scaled" ) {
-        var stopQuaternion = goog.vec.Quaternion.concat(
-          startQuaternion,
-          deltaQuaternion,
-          goog.vec.Quaternion.create()
-        );
-      }
-      this.quaternionWorker(
-        startQuaternion,
-        stopQuaternion,
-        this.time,
-        this.time + ( duration || 0 )
-      ); //@ sourceURL=node3.quaterniateBy.vwf
-
-  ## Rotate to given quaternion over duration.
-  ## 
-  ## @name node3.vwf#quaterniateTo
-  ## @function
-  ## 
-  ## @param {Array} quaternion
-  ## @param {Number} duration
-  ## 
-  ## @returns undefined
-
-  quaterniateTo:
-    parameters:
-      - quaternion
-      - duration
-    body: |
-      var startQuaternion = this.quaternion || goog.vec.Quaternion.createFromValues( 0, 0, 0, 1 );
-      var stopQuaternion = this.quaternionFromValue( quaternion );
-      this.quaternionWorker(
-        startQuaternion,
-        stopQuaternion,
-        this.time,
-        this.time + ( duration || 0 )
-      ); //@ sourceURL=node3.quaterniateTo.vwf
-
-  ## Perform a quaternion animation.
-  ## 
-  ## @name node3.vwf#quaternionWorker
-  ## @function
-  ## 
-  ## @param {Array} startQuarternion
-  ## @param {Array} stopQuarternion
-  ## @param {Number} startTime
-  ## @param {Number} stopTime
-  ## 
-  ## @returns undefined
-
-  quaternionWorker:
-    parameters:
-      - startQuaternion
-      - stopQuaternion
-      - startTime
-      - stopTime
-    body: |
-      this.playing = true;
-      this.quaternion = goog.vec.Quaternion.slerp(
-        startQuaternion, stopQuaternion,
-        startTime >= stopTime ? 1 : ( Math.max( startTime, Math.min( this.time, stopTime ) ) - startTime ) / ( stopTime - startTime ),
-        goog.vec.Quaternion.create()
-      );
-      if ( this.time < stopTime ) {
-        this.in( 0.04 ).quaternionWorker(
-          startQuaternion,
-          stopQuaternion,
-          startTime,
-          stopTime
-        ); // TODO: way to do this.in( next-tick )...
-      } 
-      else {
-        this.playing = false;
-      } //@ sourceURL=node3.quaternionWorker.vwf
-
-  ## Scale by given scale over duration.
-  ## 
-  ## @name node3.vwf#scaleBy
-  ## @function
-  ## 
-  ## @param {Array} scale
-  ## @param {Number} duration
-  ## 
-  ## @returns undefined
-
-  scaleBy:
-    parameters:
-      - scale
-      - duration
-    body: |
-      var startScale = this.scale || goog.vec.Vec3.createFromValues( 1, 1, 1 );
-      var deltaScale = this.scaleFromValue( scale );
-      var stopScale = goog.vec.Vec3.createFromValues(
-        startScale[0] * deltaScale[0],
-        startScale[1] * deltaScale[1],
-        startScale[2] * deltaScale[2]
-      );
-      this.scaleWorker(
-        startScale,
-        stopScale,
-        this.time,
-        this.time + ( duration || 0 )
-      );
-
-  ## Scale to given scale over duration.
-  ## 
-  ## @name node3.vwf#scaleTo
-  ## @function
-  ## 
-  ## @param {Array} scale
-  ## @param {Number} duration
-  ## 
-  ## @returns undefined
-
-  scaleTo:
-    parameters:
-      - scale
-      - duration
-    body: |
-      var startScale = this.scale || goog.vec.Vec3.createFromValues( 1, 1, 1 );
-      var stopScale = this.scaleFromValue( scale );
-      this.scaleWorker(
-        startScale,
-        stopScale,
-        this.time,
-        this.time + ( duration || 0 )
-      );
-
-  ## Perform a scale animation.
-  ## 
-  ## @name node3.vwf#scaleWorker
-  ## @function
-  ## 
-  ## @param {Array} startScale
-  ## @param {Array} stopScale
-  ## @param {Number} startTime
-  ## @param {Number} stopTime
-  ## 
-  ## @returns undefined
-
-  scaleWorker:
-    parameters:
-      - startScale
-      - stopScale
-      - startTime
-      - stopTime
-    body: |
-      this.playing = true;
-      this.scale = goog.vec.Vec3.lerp(  // TODO: should be geometric interpolation
-        startScale, stopScale,
-        startTime >= stopTime ? 1 : ( Math.max( startTime, Math.min( this.time, stopTime ) ) - startTime ) / ( stopTime - startTime ),
-        goog.vec.Vec3.create()
-      );
-      if ( this.time < stopTime ) {
-        this.in( 0.04 ).scaleWorker(
-          startScale,
-          stopScale,
-          startTime,
-          stopTime
-        );  // TODO: way to do this.in( next-tick )...
-      }
-      else {
-        this.playing = false;
-      }
+  visible: 
+    set: |
+      this.visible = value;
+      this.children.forEach( function( child ) {
+        child.visible = value;
+      } );
+    value: true
 
 events:
 
@@ -640,11 +337,34 @@ events:
   pointerDown:
   pointerMove:
   pointerUp:
-  pointerEnter:
   pointerOver:
-  pointerLeave:
+  pointerOut:
   pointerWheel:
   transformChanged:
+  touchHold:
+  touchTap:
+  touchDoubleTap:
+  touchDrag:
+  touchDragStart:
+  touchDragEnd:
+  touchDragUp:
+  touchDragDown:
+  touchDragLeft:
+  touchDragRight:
+  touchSwipe:
+  touchSwipeUp:
+  touchSwipeDown:
+  touchSwipeLeft:
+  touchSwipeRight:
+  touchTransform:
+  touchTransformStart:
+  touchTransformEnd:
+  touchRotate:
+  touchPinch:
+  touchPinchIn:
+  touchPinchOut:
+  touchStart:
+  touchRelease:
 
 scripts:
 

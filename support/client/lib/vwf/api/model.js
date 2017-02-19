@@ -23,30 +23,68 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {ID} nodeID
         /// @param {ID} childID
         /// @param {String} childExtendsID
         /// @param {String[]} childImplementsIDs
         /// @param {String} childSource
         /// @param {String} childType
-        /// @param {String} childURI
+        /// @param {String} childIndex
+        ///   When `nodeID` is falsy, the URI of the component, or `undefined` if the component
+        ///   wasn't loaded from a URI. When `nodeID` is truthy, the numerical index of the child's
+        ///   position in the parent's array, starting at `0`. When child order is significant to
+        ///   the driver, the child should be placed at the given position in the parent's array.
+        ///   Nodes won't necessarily arrive in numerical order since varying dependencies cause
+        ///   nodes to become ready at indeterminate times.
         /// @param {String} childName
-        /// @param {Function} [callback]
+        /// @param {module:vwf/api/model~readyCallback} callback
         /// 
         /// @returns {}
 
-        creatingNode: [ /* nodeID, childID, childExtendsID, childImplementsIDs, childSource, childType, childURI, childName, callback( ready ) */ ],
+        creatingNode: [ /* nodeID, childID, childExtendsID, childImplementsIDs, childSource, childType,
+            childIndex, childName, callback( ready ) */ ],
 
         /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {ID} nodeID
         /// @param {ID} childID
+        /// @param {String} childExtendsID
+        /// @param {String[]} childImplementsIDs
+        /// @param {String} childSource
+        /// @param {String} childType
+        /// @param {String} childIndex
+        ///   When `nodeID` is falsy, the URI of the component, or `undefined` if the component
+        ///   wasn't loaded from a URI. When `nodeID` is truthy, the numerical index of the child's
+        ///   position in the parent's array, starting at `0`. When child order is significant to
+        ///   the driver, the child should be placed at the given position in the parent's array.
+        ///   Nodes won't necessarily arrive in numerical order since varying dependencies cause
+        ///   nodes to become ready at indeterminate times.
+        /// @param {String} childName
         /// 
         /// @returns {}
 
-        initializingNode: [ /* nodeID, childID */ ],
+        initializingNode: [ /* nodeID, childID, childExtendsID, childImplementsIDs, childSource, childType,
+            childIndex, childName */ ],
 
         /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {ID} childID
+        /// @param {ID} childInitializingNodeID
+        /// 
+        /// @returns {}
+
+        initializingNodeFromPrototype: [ /* nodeID, childID, childInitializingNodeID */ ],
+
+        /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {ID} nodeID
         /// 
@@ -56,6 +94,8 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {}
         /// 
         /// @returns {}
@@ -63,6 +103,8 @@ define( function() {
         addingChild: [],
 
         /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {}
         /// 
@@ -72,6 +114,8 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {}
         /// 
         /// @returns {}
@@ -79,6 +123,8 @@ define( function() {
         settingProperties: [],
 
         /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {}
         /// 
@@ -88,6 +134,8 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {}
         /// 
         /// @returns {}
@@ -96,6 +144,8 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {}
         /// 
         /// @returns {}
@@ -103,16 +153,26 @@ define( function() {
         initializingProperty: [],
 
         // TODO: deletingProperty
-      
+
         /// Description.
         /// 
-        /// @param {}
+        /// @function
         /// 
-        /// @returns {}
+        /// @param {ID} nodeID
+        /// @param {String} propertyName
+        /// @param {Object} propertyValue
+        /// 
+        /// @returns {Object}
+        ///   A value set on property or undefined if not set.
+        ///   
+        ///   The first non-undefined return value will be sent with the "satProperty" event (which 
+        ///   may differ from the incoming propertyValue).
 
         settingProperty: [],
 
         /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {}
         /// 
@@ -122,12 +182,14 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {ID} nodeID
         /// @param {String} methodName
         /// @param {String[]} methodParameters
         /// @param {String} methodBody
         /// 
-        /// @returns {}
+        /// @returns {Handler} methodHandler
 
         creatingMethod: [ /* nodeID, methodName, methodParameters, methodBody */ ],
 
@@ -135,16 +197,106 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} methodName
+        /// @param {Handler} methodHandler
+        /// 
+        /// @returns {Handler} methodHandler
+
+        settingMethod: [ /* nodeID, methodName, methodHandler */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} methodName
+        /// 
+        /// @returns {Handler} methodHandler
+
+        gettingMethod: [ /* nodeID, methodName */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
         /// @param {ID} nodeID
         /// @param {String} methodName
         /// @param {String[]} methodParameters
-        /// @param {Value} methodValue
         /// 
         /// @returns {}
 
-        callingMethod: [ /* nodeID, methodName, methodParameters, methodValue */ ],
+        callingMethod: [ /* nodeID, methodName, methodParameters */ ],
 
         /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} eventName
+        /// @param {ListenerID} eventListenerID
+        /// @param {Handler} eventHandler
+        /// @param {ID} eventContextID
+        /// @param {String[]} eventPhases
+        /// 
+        /// @returns {Boolean}
+
+        addingEventListener: [ /* nodeID, eventName, eventListenerID, eventHandler, eventContextID, eventPhases */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} eventName
+        /// @param {ListenerID} eventListenerID
+        /// 
+        /// @returns {Boolean}
+
+        removingEventListener: [ /* nodeID, eventName, eventListenerID */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} eventName
+        /// @param {ListenerID} eventListenerID
+        /// @param {Listener} eventListener
+        /// 
+        /// @returns {Listener}
+
+        settingEventListener: [ /* nodeID, eventName, eventListenerID, eventListener */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} eventName
+        /// @param {ListenerID} eventListenerID
+        /// 
+        /// @returns {Listener}
+
+        gettingEventListener: [ /* nodeID, eventName, eventListenerID */ ],
+
+        /// Description.
+        /// 
+        /// @function
+        /// 
+        /// @param {ID} nodeID
+        /// @param {String} eventName
+        /// @param {ID} eventContextID
+        /// 
+        /// @returns {}
+
+        flushingEventListeners: [ /* nodeID, eventName, eventContextID */ ],
+
+        /// Description.
+        /// 
+        /// @function
         /// 
         /// @param {ID} nodeID
         /// @param {String} eventName
@@ -158,6 +310,8 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {ID} nodeID
         /// @param {String} eventName
         /// @param {String[]} eventParameters
@@ -168,17 +322,38 @@ define( function() {
 
         /// Description.
         /// 
+        /// @function
+        /// 
         /// @param {}
         /// @returns {}
 
         executing: [],
 
-        /// Description.
+        /// Time has changed, probably by about the same amount as last time.
         /// 
-        /// @param {}
+        /// Don't rely on `ticking` notifications; but if you do, don't rely on them to arrive at
+        /// any particular rate. `ticking` may be removed in the future to allow the reflector to
+        /// vary the idle message interval.
+        /// 
+        /// To schedule actions for certain times, use the `when` parameter in the
+        /// {@link module:vwf/kernel/model Kernel API}.
+        /// 
+        /// @function
+        /// 
+        /// @param {Number} time
+        /// 
         /// @returns {}
+        /// 
+        /// @deprecated in version 0.6.23. Use the {@link module:vwf/kernel/model Kernel API} `when`
+        ///   parameter to schedule future actions.
 
         ticking: [],
+
+        /// Description.
+        /// 
+        /// @callback module:vwf/api/model~readyCallback
+        /// 
+        /// @param {Boolean} ready
 
     };
 

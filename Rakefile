@@ -14,25 +14,33 @@
 require "rake"
 require "rake/testtask"
 require "rake/clean"
+# require "fileutils"
 
 import "support/build/utility.rake"
 
 # Delegate the standard tasks to any child projects.
 
-DELEGATED_TASKS = [ :build, :test, :clean, :clobber ]
+DELEGATED_TASKS = [ :build, :test, :clean, :clobber, :full, :web ]
 
 # Path to the standalone ruby built by support/build/Rakefile.
 
-RUBY = "support/build/ruby-1.8.7-p357-i386-mingw32"  # TODO: get this from where it's defined in support/build/Rakefile
-RUBY_GEM_HOME = "#{RUBY}/lib/ruby/gems/1.8"
+RUBY = "support/build/ruby-1.9.3-p392-i386-mingw32"  # TODO: get this from where it's defined in support/build/Rakefile
+RUBY_GEM_HOME = "#{RUBY}/lib/ruby/gems/1.9.1"
 
 # CLEAN and CLOBBER
 
 CLOBBER.include "bin/*", "run.bat"
 
+# Task Build That Includes Web Buildout
+task :full => [:web, :build]
+task :web
+
+# Default Task
+task :default => :full
+
 # Build by default.
 
-task :default => :build
+task :build
 
 # Delegate standard tasks to descendant Rakefiles.
     
@@ -123,6 +131,11 @@ file "run.bat" => "Rakefile" do |task|
             REM where to connect to the server.
             REM
             IF NOT \"%*\" == \"\" GOTO NOMESSAGE
+			echo.%~dp0|findstr /C:" " >nul 2>&1 
+			if not errorlevel 1 (
+				echo Your path contains whitespace which will cause issues with the server. Please move your VWF folder into a location without space characters in the directory path, and try run.bat again.
+				GOTO :EOF
+			)
             ECHO Virtual World Framework. Navigate to http://localhost:3000 to begin.
             :NOMESSAGE
             REM
@@ -141,15 +154,103 @@ end
 
 # == test ==========================================================================================
 
-# Create the test task.
-
 Rake::TestTask.new do |task| 
+  task.libs << "test"
+  
+  task.test_files = FileList[ "test/*_test.rb", "test/*/*_test.rb", "test/*_spec.rb", "test/*/*_spec.rb" ]
 
-    task.libs << "test"
-    task.test_files = FileList[ "test/*_test.rb", "test/*/*_test.rb" ]
+  task.verbose = true
+end
 
-    task.verbose = true
+desc "Run JavaScript client tests"
+task "client:test" => "support-client:test"
 
+desc "Run Ruby and Node server tests"
+task "server:test" => ["server:ruby:start", "server:node:start"] do
+  puts "Sleeping 1 second while thin starts"
+
+  casperjs = which_binary("casperjs", ENV['CASPERJS_BIN'])
+  next unless casperjs
+
+  system "#{casperjs} test test/serverTest.js"
+
+  puts "running tests now"
+
+  Rake::Task["server:ruby:stop"].execute
+  Rake::Task["server:node:stop"].execute
+end
+
+namespace :server do
+  namespace :node do
+    desc "Stops the daemonized Node server"
+    task :stop do
+      puts "Stopping Node server"
+
+      system "forever stopall"
+    end
+
+    desc "Starts Node server at localhost:3000"
+    task :start do
+      puts "Start Node as a daemon"
+
+      system "forever start node-server.js -a ./public/ -p 4000"
+    end
+  end
+
+  namespace :ruby do
+    desc "Stops the daemon Thin server"
+    task :stop do
+      if !File.exists?("tmp/pids/thin.pid")
+        puts "Thin server is not running"
+        next
+      end
+
+      file = File.open("tmp/pids/thin.pid", "rb")
+      process_id = file.read
+
+      puts "Stopping Thin server (process #{process_id})"
+
+      system "kill #{process_id}"
+
+      FileUtils.remove_dir("log") if File.directory? "log"
+      FileUtils.remove_dir("tmp") if File.directory? "tmp"
+    end
+
+    desc "Starts server at localhost:3000"
+    task :start do
+      if File.exists?("tmp/pids/thin.pid")
+        puts "Thin server is already running"
+        next
+      end
+
+      puts "Start Thin as a daemon"
+
+      system "thin start -d"
+    end
+  end
+end
+
+def which_binary(binary, binary_env)
+  return binary_on_path(binary) if (binary_env.nil? || binary_env.empty?)
+
+  # File expects the string to be escaped, and there's no consistent way to escape across Windows and Unix-based
+  binary_env_escaped = binary_env.gsub("\\ ", " ")
+  if File.exists?(binary_env_escaped) && File.executable?(binary_env_escaped)
+    return binary_env
+  else
+    return binary_on_path(binary)
+  end
+end
+
+def binary_on_path(binary)
+  output = %x[which #{binary}]
+  # 'which binary' on Mac/Linux returns nothing, but on Cygwin returns "which: no binary in (PATH)"
+  if output.empty? || output =~ /no #{binary} in/
+    puts "The QUnit tests require #{binary}. Please install before running."
+    return false
+  else
+    return binary
+  end
 end
 
 # Environment for running the standalone ruby.
@@ -193,3 +294,4 @@ def standalone_build_env
     }
 
 end
+

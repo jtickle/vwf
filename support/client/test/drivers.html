@@ -8,7 +8,6 @@
 
     <script type="text/javascript" src="qunit.js"></script>
 
-    <script type="text/javascript" src="../lib/jquery-1.7.1.js"></script>
     <script type="text/javascript" src="../lib/async.js"></script>
 
     <script type="text/javascript" src="../lib/alea.js"></script>
@@ -23,15 +22,20 @@
 
       require( {
 
-        baseUrl: "../lib"
+        baseUrl: "../lib",
+        paths: {
+          jquery: "jquery-1.10.2.min",
+        },
 
       }, [
 
         "domReady",
+        "utility.js",
 
         // This is the common model implementation and an example model that connects the
         // simulation to a WebGL scene manager.
 
+        "jquery",
         "vwf/configuration",
         "vwf/kernel/model", // explicitly loaded until vwf can load its dependencies
         "vwf/model/glge",
@@ -41,10 +45,11 @@
         "vwf/kernel/view", // explicitly loaded until vwf can load its dependencies
         "vwf/view/test",
         "vwf/view/glge",
+        "vwf/kernel/utility",
         "vwf/utility",
         "logger",
 
-      ], function( ready ) {
+      ], function( ready, testUtility ) {
 
         // Test the kernel-driver interface.
 
@@ -110,7 +115,7 @@
           } );
 
           test( "Views", function() {
-            // equal( vwf.views.actual[0].module.id, "vwf/view/glge", "GLGE View" );  // TODO: waiting on views to convert to RequireJS loader
+            equal( vwf.views.actual[0].module.id, "vwf/view/glge", "GLGE View" );
           } );
 
           test ( "View parameters", function() {
@@ -127,29 +132,32 @@
           test( "Shared state", function() {
 
             var model_glge = vwf.models.actual["vwf/model/glge"];
-            var view_glge = vwf.views[0]; // vwf.views.actual["vwf/view/glge"];  // TODO: waiting on views to convert to RequireJS loader
+            var view_glge = vwf.views.actual["vwf/view/glge"];
+
+            var state_glge = model_glge.state; // === view_glge.state, hopefully.
 
             // The GLGE model and view share state.
 
-            strictEqual( model_glge.state, view_glge.state, "GLGE shared state" );
+            strictEqual( model_glge.state, view_glge.state, "GLGE state shared between " +
+                model_glge.module.id + " and " + view_glge.module.id );
 
             // But they don't share it with any other model stage.
 
             vwf.models.forEach( function( model ) {
                 while ( model ) {
-                    model === model_glge || notStrictEqual( model.state, model_glge.state, "GLGE state" );
+                    model === model_glge || notStrictEqual( model.state, state_glge, "GLGE state not shared with " + model.module.id );
                     model = model.model;
                 }
             } );
 
             // Or with any other view stage.
 
-            // vwf.views.every( function( view ) {  // TODO: waiting on views to convert to RequireJS loader
-            //     while ( view ) {
-            //         notStrictEqual( view.state, view_glge.state, "GLGE state" );
-            //         view = view.view;
-            //     }
-            // } );
+            vwf.views.forEach( function( view ) {
+                while ( view ) {
+                    view === view_glge || notStrictEqual( view.state, state_glge, "GLGE state not shared with " + view.module.id );
+                    view = view.view;
+                }
+            } );
 
           } );
          

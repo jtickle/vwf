@@ -46,7 +46,7 @@ limitations under the License.
     </library_cameras>
     <library_images>
         <image id="file2" name="file2" depth="1">
-            <init_from>images/duckCM.png</init_from>
+            <init_from>duck.png</init_from>
         </image>
     </library_images>
     <library_materials>
@@ -76,7 +76,7 @@ limitations under the License.
                             <color>0 0 0 1</color>
                         </emission>
                         <ambient>
-                            <color>0 0 0 1</color>
+                            <color>1 1 1 1</color>
                         </ambient>
                         <diffuse>
                             <texture texture="file2-sampler" texcoord="TEX0"/>
@@ -97,7 +97,7 @@ limitations under the License.
                             <color>0 0 0 1</color>
                         </transparent>
                         <transparency>
-                            <float>1</float>
+                            <float>0</float>
                         </transparency>
                         <index_of_refraction>
                             <float>1</float>
